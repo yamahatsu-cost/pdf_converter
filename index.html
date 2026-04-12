@@ -275,7 +275,9 @@
         padding: 10px 8px;
         font-size: 13px;
       }
-      .ocr-actions {
+      .ocr-actions,
+      .translate-grid,
+      .translate-actions {
         grid-template-columns: 1fr;
       }
     }
@@ -556,6 +558,36 @@
       border-color: #8fb4e0;
       box-shadow: 0 0 0 4px rgba(47,121,207,.10);
     }
+    .translate-box {
+      margin-top: 14px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #f8fbfe;
+    }
+    .translate-head {
+      font-size: 14px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #17406f;
+    }
+    .translate-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .translate-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .translate-note {
+      margin-top: 10px;
+      color: var(--sub);
+      font-size: 12px;
+      line-height: 1.6;
+    }
     .doc-actions {
       display: grid;
       grid-template-columns: 1fr 1fr 110px;
@@ -761,6 +793,34 @@
 
         <div id="ocrStatus" class="status">PDFを選択してください。</div>
         <textarea id="ocrOutput" class="ocr-output" placeholder="抽出したテキストがここに表示されます。"></textarea>
+
+        <div class="translate-box">
+          <div class="translate-head">Google翻訳で開く</div>
+          <div class="translate-grid">
+            <div class="field">
+              <label for="translateService">翻訳サービス</label>
+              <select id="translateService">
+                <option value="google">Google翻訳</option>
+                <option value="deepl">DeepL</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="translateTarget">翻訳先言語</label>
+              <select id="translateTarget">
+                <option value="en">英語</option>
+                <option value="zh-CN">中国語（簡体字）</option>
+                <option value="zh-TW">中国語（繁体字）</option>
+                <option value="ja">日本語</option>
+              </select>
+            </div>
+          </div>
+          <div class="translate-actions">
+            <button id="openTranslateBtn" class="secondary" disabled>翻訳ページを開く</button>
+            <button id="copyTranslateTextBtn" class="secondary" disabled>テキストをコピー</button>
+            <button id="openTranslateAndCopyBtn" disabled>コピーして開く</button>
+          </div>
+          <div class="translate-note">翻訳元言語は自動判定です。抽出した文字列を外部の翻訳ページに渡します。機密情報の送信には注意してください。</div>
+        </div>
       </section>
 
 
@@ -822,7 +882,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-9";
+    const APP_VERSION = "20260412-10";
     const VERSION_KEY = 'pdf-img-app-version';
     const { jsPDF } = window.jspdf;
 
@@ -854,6 +914,11 @@
     const clearOcrBtn = document.getElementById('clearOcrBtn');
     const ocrStatus = document.getElementById('ocrStatus');
     const ocrOutput = document.getElementById('ocrOutput');
+    const translateService = document.getElementById('translateService');
+    const translateTarget = document.getElementById('translateTarget');
+    const openTranslateBtn = document.getElementById('openTranslateBtn');
+    const copyTranslateTextBtn = document.getElementById('copyTranslateTextBtn');
+    const openTranslateAndCopyBtn = document.getElementById('openTranslateAndCopyBtn');
     const wordInput = document.getElementById('wordInput');
     const wordDrop = document.getElementById('wordDrop');
     const extractWordBtn = document.getElementById('extractWordBtn');
@@ -872,6 +937,44 @@
     let draggedIndex = null;
 
     appVersionText.textContent = APP_VERSION;
+
+    function getTranslateText() {
+      return (ocrOutput.value || extractedText || '').trim();
+    }
+
+    function updateTranslateButtons() {
+      const hasText = !!getTranslateText();
+      openTranslateBtn.disabled = !hasText;
+      copyTranslateTextBtn.disabled = !hasText;
+      openTranslateAndCopyBtn.disabled = !hasText;
+    }
+
+    function buildTranslateUrl(service, target, text) {
+      const encoded = encodeURIComponent(text);
+      if (service === 'deepl') {
+        const deepTarget = target === 'zh-CN' ? 'ZH' : target === 'zh-TW' ? 'ZH' : target.toUpperCase();
+        return `https://www.deepl.com/translator#auto/${deepTarget}/${encoded}`;
+      }
+      return `https://translate.google.com/?sl=auto&tl=${encodeURIComponent(target)}&text=${encoded}&op=translate`;
+    }
+
+    async function copyTranslateText() {
+      const text = getTranslateText();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus(ocrStatus, '抽出テキストをコピーしました。翻訳ページへ貼り付けできます。', 'ok');
+      } catch (error) {
+        setStatus(ocrStatus, 'コピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
+      }
+    }
+
+    function openTranslatePage() {
+      const text = getTranslateText();
+      if (!text) return;
+      const url = buildTranslateUrl(translateService.value, translateTarget.value, text);
+      window.open(url, '_blank', 'noopener');
+    }
 
     function showUpdateModal() {
       updateModal.classList.add('show');
@@ -900,6 +1003,15 @@
 
     updateNowBtn.addEventListener('click', reloadToLatest);
     closeUpdateBtn.addEventListener('click', hideUpdateModal);
+    openTranslateBtn.addEventListener('click', openTranslatePage);
+    copyTranslateTextBtn.addEventListener('click', copyTranslateText);
+    openTranslateAndCopyBtn.addEventListener('click', async () => {
+      await copyTranslateText();
+      openTranslatePage();
+    });
+    ocrOutput.addEventListener('input', updateTranslateButtons);
+    translateService.addEventListener('change', updateTranslateButtons);
+    translateTarget.addEventListener('change', updateTranslateButtons);
     checkVersionPopup();
 
     function setStatus(el, text, type = '') {
@@ -1420,6 +1532,75 @@ function normalizeLineForRepeat(text) {
       return rows.map(r => ({ y: r.y, lines: r.lines.sort((a, b) => a.xMin - b.xMin) }));
     }
 
+    function isCenteredTitleLine(line, bounds, pageWidth, pageHeight) {
+      if (!line || !bounds) return false;
+      const text = String(line.text || '').trim();
+      if (!text || text.length > 80) return false;
+      const compact = text.replace(/\s+/g, '');
+      if (compact.length < 4) return false;
+      const xMin = Number(line.xMin) || 0;
+      const xMax = Number(line.xMax) || (xMin + (Number(line.widthPx || line.width) || 0));
+      const lineWidth = Math.max(1, xMax - xMin);
+      const colWidth = Math.max(1, (bounds.right || pageWidth) - (bounds.left || 0));
+      const leftGap = Math.max(0, xMin - (bounds.left || 0));
+      const rightGap = Math.max(0, (bounds.right || pageWidth) - xMax);
+      const centered = Math.abs(leftGap - rightGap) <= Math.max(8, Number(line.fontSize || 12) * 0.9, colWidth * 0.04);
+      const nearTop = (Number(line.yTop) || 0) <= pageHeight * 0.22;
+      const widthRatio = lineWidth / colWidth;
+      const hasSentencePunc = /[。\.、,，．:：;；]$/.test(text);
+      const headingLike = line.isBold || line.isHeading || /^(第?[0-9０-９一二三四五六七八九十]+[章節]|[■□◆◇●○]|[A-Z][A-Z0-9\- ]{3,}|[^a-z]{6,})/.test(compact);
+      return nearTop && centered && widthRatio >= 0.12 && widthRatio <= 0.72 && !hasSentencePunc && headingLike;
+    }
+
+    function detectProtectedRegions(lines, columns, pageWidth, pageHeight) {
+      const rows = buildRowsFromLines(lines);
+      const regions = [];
+      for (const row of rows) {
+        const rowLines = row.lines || [];
+        if (!rowLines.length) continue;
+        const texts = rowLines.map(l => String(l.text || '').trim()).filter(Boolean);
+        const joined = texts.join(' ');
+        const compact = joined.replace(/\s+/g, '');
+        const digitCount = (compact.match(/[0-9０-９]/g) || []).length;
+        const punctCount = (compact.match(/[\-–—:;,.%$¥€£|/()\[\]]/g) || []).length;
+        const multiColumn = rowLines.length >= 2;
+        const spaced = texts.some(t => /\s{3,}/.test(t));
+        const numericDense = compact.length > 0 && ((digitCount / compact.length) >= 0.18 || (punctCount / compact.length) >= 0.14);
+        const shortFragments = rowLines.length >= 3 && rowLines.every(l => String(l.text || '').trim().length <= 28);
+        const nearGraphicArea = rowLines.some(l => {
+          const colIdx = assignLineToColumn(l, columns);
+          const bounds = columns[colIdx] || columns[0] || { left: 0, right: pageWidth };
+          const colWidth = Math.max(1, bounds.right - bounds.left);
+          const xMin = Number(l.xMin) || 0;
+          const xMax = Number(l.xMax) || (xMin + (Number(l.widthPx || l.width) || 0));
+          const widthRatio = (xMax - xMin) / colWidth;
+          return widthRatio <= 0.38 && (Number(l.yTop) || 0) > pageHeight * 0.12;
+        });
+        if (multiColumn || spaced || numericDense || shortFragments || nearGraphicArea) {
+          const top = Math.min(...rowLines.map(l => Number(l.yTop) || 0)) - 6;
+          const bottom = Math.max(...rowLines.map(l => (Number(l.yTop) || 0) + (Number(l.height) || Number(l.fontSize) || 12))) + 6;
+          regions.push({ top, bottom });
+        }
+      }
+      regions.sort((a, b) => a.top - b.top);
+      const merged = [];
+      for (const region of regions) {
+        const last = merged[merged.length - 1];
+        if (last && region.top <= last.bottom + 18) {
+          last.bottom = Math.max(last.bottom, region.bottom);
+        } else {
+          merged.push({ ...region });
+        }
+      }
+      return merged;
+    }
+
+    function isInProtectedRegion(line, regions) {
+      const yTop = Number(line?.yTop) || 0;
+      const yBottom = yTop + (Number(line?.height) || Number(line?.fontSize) || 12);
+      return (regions || []).some(r => yBottom >= r.top && yTop <= r.bottom);
+    }
+
     function detectTextAlign(line, bounds, fontPx, scale, pageWidth, pageHeight) {
       const xMin = Number(line.xMin) || 0;
       const xMax = Number(line.xMax) || (xMin + (Number(line.widthPx || line.width) || 0));
@@ -1439,6 +1620,9 @@ function normalizeLineForRepeat(text) {
       const nearPageTop = yTop < pageHeight * 0.16;
       const tolerance = Math.max(5, fontPx * 0.42, 6 / Math.max(scale, 0.01));
 
+      if (line.isCenteredTitle || line.isTitleCenter) {
+        return 'center';
+      }
       if (chartLike || (mostlyCjkParagraph && compactText.length > 16) || lineWidth > colWidth * 0.74) {
         return 'left';
       }
@@ -1458,7 +1642,7 @@ function normalizeLineForRepeat(text) {
     function isParagraphLikeLine(line, bounds) {
       const text = String(line.text || '').trim();
       if (!text || text.length < 10) return false;
-      if (line.isHeading || line.isBold) return false;
+      if (line.isHeading || line.isBold || line.isCenteredTitle || line.inProtectedRegion) return false;
       if (isBulletLikeText(text)) return false;
       if (/[:：]$/.test(text)) return false;
       if (/\s{3,}/.test(text)) return false;
@@ -1484,7 +1668,7 @@ function normalizeLineForRepeat(text) {
       if (Math.abs((Number(next.xMin) || 0) - (Number(current.xMin) || 0)) > Math.max(18, baseFont * 1.4)) return false;
       const fontRatio = Math.abs((Number(next.fontSize) || 12) - (Number(current.fontSize) || 12)) / baseFont;
       if (fontRatio > 0.18) return false;
-      if (next.isHeading || next.isBold || isBulletLikeText(next.text)) return false;
+      if (next.isHeading || next.isBold || next.isCenteredTitle || next.inProtectedRegion || isBulletLikeText(next.text)) return false;
       return true;
     }
 
@@ -1593,7 +1777,7 @@ function normalizeLineForRepeat(text) {
       const align = detectTextAlign(line, bounds, fontPx, scale, pageWidth, pageHeight);
       const left = align === 'left' ? Math.round(leftFromPage) : Math.round(boundsLeft);
       const width = Math.round(align === 'left' ? lineWidth : colWidth);
-      const fontWeight = (line.isHeading || line.isBold) ? '700' : '400';
+      const fontWeight = (line.isHeading || line.isBold || line.isCenteredTitle) ? '700' : '400';
       return `<div style="position:absolute;left:${left}px;top:${top}px;width:${width}px;font-size:${fontPx}px;line-height:${lineHeightRatio.toFixed(2)};text-align:${align};font-weight:${fontWeight};white-space:pre-wrap;">${escapeWordHtml(line.text)}</div>`;
     }
 
@@ -1635,6 +1819,12 @@ function normalizeLineForRepeat(text) {
           const effectiveRight = Math.min(pageWidth, pageStats.contentRight + (pageMarginX / Math.max(scale, 0.01)));
 
           const columns = normalizeColumns(clusterColumnStarts(lines, pageWidth), effectiveLeft, effectiveRight);
+          const protectedRegions = detectProtectedRegions(lines, columns, pageWidth, pageHeight);
+          lines.forEach(line => {
+            const pageBounds = { left: effectiveLeft, right: effectiveRight };
+            line.isCenteredTitle = isCenteredTitleLine(line, pageBounds, pageWidth, pageHeight);
+            line.inProtectedRegion = isInProtectedRegion(line, protectedRegions);
+          });
           const blocks = buildBlocksFromLines(lines, columns);
           const body = blocks.map(block => {
             const metrics = {
