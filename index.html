@@ -11,14 +11,15 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>PDF⇔画像 変換アプリ</title>
-  <link rel="manifest" href="site.webmanifest?v=20260412-5" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-5" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-5" />
-  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-5" />
-  <link rel="icon" href="favicon.ico?v=20260412-5" />
+  <link rel="manifest" href="site.webmanifest?v=20260412-7" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-7" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-7" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-7" />
+  <link rel="icon" href="favicon.ico?v=20260412-7" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <style>
     :root {
       --bg: #eaf0f6;
@@ -57,7 +58,7 @@
     .hero {
       position: relative;
       background: linear-gradient(135deg, #114b8a 0%, #1c5fa5 50%, #123f73 100%);
-      border-radius: 0 0 14px 14px;
+      border-radius: 0 0 8px 8px;
       box-shadow: 0 16px 36px rgba(18,57,102,.18);
       color: #fff;
       padding: 24px 18px 18px;
@@ -119,7 +120,7 @@
     .header-tabs {
       margin-top: 12px;
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
       background: rgba(255,255,255,.18);
       border: 1px solid rgba(255,255,255,.16);
@@ -555,11 +556,32 @@
       border-color: #8fb4e0;
       box-shadow: 0 0 0 4px rgba(47,121,207,.10);
     }
+    .doc-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 110px;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .doc-preview {
+      width: 100%;
+      min-height: 220px;
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+      background: #fff;
+      resize: vertical;
+      outline: none;
+    }
+
 
     @media (min-width: 860px) {
-      .hero { border-radius: 28px; padding: 28px 28px 22px; }
+      .hero { border-radius: 0 0 10px 10px; padding: 28px 28px 22px; }
       .header-tabs {
-        max-width: 760px;
+        width: 100%;
       }
       .fields.two {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -601,14 +623,14 @@
           山發日本株式会社　社内アプリ<br>
         </p>
         <div class="hero-badges">
-          <span class="hero-badge">PDF→JPG / PNG</span>
-          <span class="hero-badge">JPG / PNG→PDF</span>
-          <span class="hero-badge">PDF文字おこし</span>
+          <span class="hero-badge">デスクトップアプリ実装版</span>
+          <span class="hero-badge">service worker仕様</span>
         </div>
         <div class="header-tabs">
           <button type="button" class="header-tab active" id="tabPdfToImage">PDF → 画像</button>
           <button type="button" class="header-tab" id="tabImageToPdf">画像 → PDF</button>
           <button type="button" class="header-tab" id="tabPdfToText">PDF文字おこし</button>
+          <button type="button" class="header-tab" id="tabPdfToWord">PDF → Word</button>
         </div>
       </section>
     </div>
@@ -741,10 +763,37 @@
         <textarea id="ocrOutput" class="ocr-output" placeholder="抽出したテキストがここに表示されます。"></textarea>
       </section>
 
+
+      <section class="card tab-panel" id="panelPdfToWord">
+        <div class="section-head">
+          <div class="section-bar"></div>
+          <h2>4. PDF → Word</h2>
+        </div>
+        <p class="desc">
+          PDFから抽出したテキストを、Wordで開ける .doc 形式で保存します。
+          文字情報を持つPDFに対応しています。繰り返し出るヘッダー・フッター候補は自動除外します。
+        </p>
+
+        <label class="dropzone" id="wordDrop" for="wordInput">
+          <strong>PDFをここへドロップ または クリック</strong>
+          <span>対応形式: PDF / 1ファイル</span>
+        </label>
+        <input type="file" id="wordInput" accept="application/pdf" />
+
+        <div class="doc-actions">
+          <button id="extractWordBtn" disabled>Word用に抽出</button>
+          <button id="downloadWordBtn" class="secondary" disabled>DOC保存</button>
+          <button id="clearWordBtn" class="secondary" disabled>クリア</button>
+        </div>
+
+        <div id="wordStatus" class="status">PDFを選択してください。</div>
+        <textarea id="wordPreview" class="doc-preview" placeholder="Word化するテキストのプレビューがここに表示されます。"></textarea>
+      </section>
+
 <section class="card tips">
       <div class="section-head">
         <div class="section-bar"></div>
-        <h2>3. 使用方法</h2>
+        <h2>5. 使用方法</h2>
       </div>
       <div class="tip">・PDF→画像 は複数ページをまとめて ZIP で保存します。</div>
       <div class="tip">・画像→PDF は最初に数字順、数字がない場合は名前順に並びます。</div>
@@ -770,11 +819,10 @@
     </div>
   </div>
 
-  <script type="module">
-    import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = '20260412-5';
+    const APP_VERSION = "20260412-7";
     const VERSION_KEY = 'pdf-img-app-version';
     const { jsPDF } = window.jspdf;
 
@@ -806,11 +854,20 @@
     const clearOcrBtn = document.getElementById('clearOcrBtn');
     const ocrStatus = document.getElementById('ocrStatus');
     const ocrOutput = document.getElementById('ocrOutput');
+    const wordInput = document.getElementById('wordInput');
+    const wordDrop = document.getElementById('wordDrop');
+    const extractWordBtn = document.getElementById('extractWordBtn');
+    const downloadWordBtn = document.getElementById('downloadWordBtn');
+    const clearWordBtn = document.getElementById('clearWordBtn');
+    const wordStatus = document.getElementById('wordStatus');
+    const wordPreview = document.getElementById('wordPreview');
 
     let selectedPdf = null;
     let selectedImages = [];
     let selectedOcrPdf = null;
     let extractedText = "";
+    let selectedWordPdf = null;
+    let wordText = "";
     let draggedIndex = null;
 
     appVersionText.textContent = APP_VERSION;
@@ -1075,6 +1132,86 @@
 
 
 
+
+    function groupTextItemsIntoLines(items) {
+      const sorted = [...items].sort((a,b) => {
+        const ay = a.transform ? a.transform[5] : 0;
+        const by = b.transform ? b.transform[5] : 0;
+        if (Math.abs(by - ay) > 2) return by - ay;
+        const ax = a.transform ? a.transform[4] : 0;
+        const bx = b.transform ? b.transform[4] : 0;
+        return ax - bx;
+      });
+      const lines = [];
+      for (const item of sorted) {
+        const y = item.transform ? item.transform[5] : 0;
+        const x = item.transform ? item.transform[4] : 0;
+        const text = String(item.str || '').trim();
+        if (!text) continue;
+        let line = lines.find(l => Math.abs(l.y - y) <= 2.5);
+        if (!line) {
+          line = { y, parts: [] };
+          lines.push(line);
+        }
+        line.parts.push({ x, text });
+      }
+      return lines.map(l => ({
+        y: l.y,
+        text: l.parts.sort((a,b)=>a.x-b.x).map(p=>p.text).join(' ').replace(/\s+/g,' ').trim()
+      })).filter(l => l.text);
+    }
+
+    function normalizeLineForRepeat(text) {
+      return text
+        .replace(/\d+/g, '#')
+        .replace(/[0-9０-９]+/g, '#')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    async function extractPdfTextWithHeaderFooterRemoval(file, statusEl, modeLabel) {
+      const arrayBuffer = await readFileAsArrayBuffer(file);
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      const pageData = [];
+      const headerMap = new Map();
+      const footerMap = new Map();
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        setStatus(statusEl, `${pageNum} / ${pdf.numPages} ページを${modeLabel}中...`);
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const viewport = page.getViewport({ scale: 1 });
+        const pageHeight = viewport.height || 0;
+        const lines = groupTextItemsIntoLines(textContent.items);
+        pageData.push({ pageNum, lines, pageHeight });
+
+        lines.forEach(line => {
+          const key = normalizeLineForRepeat(line.text);
+          if (!key || key.length < 2) return;
+          if (line.y >= pageHeight * 0.88) headerMap.set(key, (headerMap.get(key) || 0) + 1);
+          if (line.y <= pageHeight * 0.12) footerMap.set(key, (footerMap.get(key) || 0) + 1);
+        });
+      }
+
+      const threshold = Math.max(2, Math.ceil(pdf.numPages * 0.6));
+      const repeatingHeaders = new Set([...headerMap].filter(([,count]) => count >= threshold).map(([k]) => k));
+      const repeatingFooters = new Set([...footerMap].filter(([,count]) => count >= threshold).map(([k]) => k));
+
+      const pages = pageData.map(({pageNum, lines, pageHeight}) => {
+        const filtered = lines.filter(line => {
+          const key = normalizeLineForRepeat(line.text);
+          if (!key) return false;
+          if (line.y >= pageHeight * 0.88 && repeatingHeaders.has(key)) return false;
+          if (line.y <= pageHeight * 0.12 && repeatingFooters.has(key)) return false;
+          return true;
+        });
+        return filtered.map(l => l.text).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+      });
+
+      return pages.filter(Boolean).join('\n\n');
+    }
+
     setupDropzone(ocrDrop, ocrInput, files => {
       const pdf = files.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
       if (!pdf) {
@@ -1092,6 +1229,28 @@
       extractedText = '';
       ocrOutput.value = '';
       setStatus(ocrStatus, `選択中: ${pdf.name}\nサイズ: ${formatBytes(pdf.size)}`, 'ok');
+    });
+
+
+
+    setupDropzone(wordDrop, wordInput, files => {
+      const pdf = files.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+      if (!pdf) {
+        selectedWordPdf = null;
+        extractWordBtn.disabled = true;
+        downloadWordBtn.disabled = true;
+        clearWordBtn.disabled = true;
+        setStatus(wordStatus, 'PDFファイルを選択してください。', 'warn');
+        return;
+      }
+      selectedWordPdf = pdf;
+      extractWordBtn.disabled = false;
+      downloadWordBtn.disabled = true;
+      clearWordBtn.disabled = false;
+      wordText = '';
+      wordPreview.value = '';
+      setStatus(wordStatus, `選択中: ${pdf.name}
+サイズ: ${formatBytes(pdf.size)}`, 'ok');
     });
 
         imageFormat.addEventListener('change', updateJpgQualityVisibility);
@@ -1252,26 +1411,14 @@
       setStatus(ocrStatus, 'PDFから文字を抽出しています...');
 
       try {
-        const arrayBuffer = await readFileAsArrayBuffer(selectedOcrPdf);
-        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
-        const pages = [];
-
-        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-          setStatus(ocrStatus, `${pageNum} / ${pdf.numPages} ページを抽出中...`);
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
-          pages.push(`--- ${pageNum}ページ目 ---\n${pageText}`);
-        }
-
-        extractedText = pages.join('\n\n');
+        extractedText = await extractPdfTextWithHeaderFooterRemoval(selectedOcrPdf, ocrStatus, '抽出');
         ocrOutput.value = extractedText;
         downloadTextBtn.disabled = !extractedText.trim();
-        setStatus(ocrStatus, extractedText.trim() ? '文字抽出が完了しました。' : '文字情報を抽出できませんでした。画像PDFの可能性があります。', extractedText.trim() ? 'ok' : 'warn');
+        setStatus(ocrStatus, extractedText.trim() ? '文字抽出が完了しました。ヘッダー・フッター候補は自動除外しています。' : '文字情報を抽出できませんでした。画像PDFの可能性があります。', extractedText.trim() ? 'ok' : 'warn');
       } catch (err) {
         console.error(err);
-        setStatus(ocrStatus, `文字抽出に失敗しました。\n${err.message || err}`, 'warn');
+        setStatus(ocrStatus, `文字抽出に失敗しました。
+${err.message || err}`, 'warn');
       } finally {
         extractTextBtn.disabled = !selectedOcrPdf;
         clearOcrBtn.disabled = !selectedOcrPdf;
@@ -1285,28 +1432,80 @@
       saveAs(blob, `${baseName}.txt`);
     });
 
+    clearWordBtn.addEventListener('click', () => {
+      selectedWordPdf = null;
+      wordText = '';
+      wordInput.value = '';
+      wordPreview.value = '';
+      extractWordBtn.disabled = true;
+      downloadWordBtn.disabled = true;
+      clearWordBtn.disabled = true;
+      setStatus(wordStatus, 'PDFを選択してください。');
+    });
+
+    extractWordBtn.addEventListener('click', async () => {
+      if (!selectedWordPdf) return;
+      extractWordBtn.disabled = true;
+      clearWordBtn.disabled = true;
+      downloadWordBtn.disabled = true;
+      setStatus(wordStatus, 'Word用テキストを抽出しています...');
+
+      try {
+        wordText = await extractPdfTextWithHeaderFooterRemoval(selectedWordPdf, wordStatus, '解析');
+        wordPreview.value = wordText;
+        downloadWordBtn.disabled = !wordText.trim();
+        setStatus(wordStatus, wordText.trim() ? 'Word用テキストの抽出が完了しました。' : '文字情報を抽出できませんでした。画像PDFの可能性があります。', wordText.trim() ? 'ok' : 'warn');
+      } catch (err) {
+        console.error(err);
+        setStatus(wordStatus, `Word変換の準備に失敗しました。\n${err.message || err}`, 'warn');
+      } finally {
+        extractWordBtn.disabled = !selectedWordPdf;
+        clearWordBtn.disabled = !selectedWordPdf;
+      }
+    });
+
+    downloadWordBtn.addEventListener('click', () => {
+      if (!wordText.trim()) return;
+      const baseName = selectedWordPdf ? getBaseName(selectedWordPdf.name) : 'pdf-word';
+      const escaped = wordText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+      const docHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${baseName}</title></head><body style="font-family:Meiryo,'Yu Gothic',sans-serif;line-height:1.7;font-size:12pt;">${escaped}</body></html>`;
+      const blob = new Blob([docHtml], { type: 'application/msword;charset=utf-8' });
+      saveAs(blob, `${baseName}.doc`);
+    });
+
+
         const tabPdfToImage = document.getElementById('tabPdfToImage');
     const tabImageToPdf = document.getElementById('tabImageToPdf');
     const tabPdfToText = document.getElementById('tabPdfToText');
+    const tabPdfToWord = document.getElementById('tabPdfToWord');
     const panelPdfToImage = document.getElementById('panelPdfToImage');
     const panelImageToPdf = document.getElementById('panelImageToPdf');
     const panelPdfToText = document.getElementById('panelPdfToText');
+    const panelPdfToWord = document.getElementById('panelPdfToWord');
 
     function setTab(tab) {
       const isPdfImage = tab === 'pdf';
       const isImagePdf = tab === 'img';
       const isPdfText = tab === 'ocr';
+      const isPdfWord = tab === 'word';
       tabPdfToImage.classList.toggle('active', isPdfImage);
       tabImageToPdf.classList.toggle('active', isImagePdf);
       tabPdfToText.classList.toggle('active', isPdfText);
+      tabPdfToWord.classList.toggle('active', isPdfWord);
       panelPdfToImage.classList.toggle('active', isPdfImage);
       panelImageToPdf.classList.toggle('active', isImagePdf);
       panelPdfToText.classList.toggle('active', isPdfText);
+      panelPdfToWord.classList.toggle('active', isPdfWord);
     }
 
     tabPdfToImage.addEventListener('click', () => setTab('pdf'));
     tabImageToPdf.addEventListener('click', () => setTab('img'));
     tabPdfToText.addEventListener('click', () => setTab('ocr'));
+    tabPdfToWord.addEventListener('click', () => setTab('word'));
 
 
   </script>
