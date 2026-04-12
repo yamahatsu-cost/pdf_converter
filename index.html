@@ -578,7 +578,7 @@
     }
     .translate-actions {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: repeat(4, 1fr);
       gap: 10px;
       margin-top: 12px;
     }
@@ -588,11 +588,250 @@
       font-size: 12px;
       line-height: 1.6;
     }
+    .translate-summary {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .translate-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      border: 1px solid #d4deea;
+      background: #fff;
+      color: #244f81;
+    }
+    .translate-collapsible {
+      margin-top: 12px;
+      border: 1px solid var(--soft-line);
+      border-radius: 16px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .translate-collapsible summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 12px 14px;
+      font-weight: 800;
+      color: #18406f;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .translate-collapsible summary::-webkit-details-marker { display: none; }
+    .translate-collapsible[open] summary {
+      border-bottom: 1px solid var(--soft-line);
+      background: #fbfdff;
+    }
+    .chunk-list {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+    }
+    .chunk-item {
+      border: 1px solid var(--soft-line);
+      border-radius: 14px;
+      background: #fbfdff;
+      padding: 12px;
+    }
+    .chunk-item.active {
+      border-color: #5f91cb;
+      box-shadow: 0 0 0 5px rgba(47,121,207,.18);
+      background: #eef5ff;
+    }
+    .chunk-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .chunk-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #17406f;
+    }
+    .chunk-meta {
+      font-size: 12px;
+      color: var(--sub);
+    }
+    .chunk-preview {
+      font-size: 12px;
+      color: #4f6177;
+      line-height: 1.65;
+      background: #fff;
+      border: 1px solid #e4ebf3;
+      border-radius: 12px;
+      padding: 10px;
+      min-height: calc(1.65em + 20px);
+      max-height: calc(1.65em + 20px);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      transition: max-height .18s ease, background-color .18s ease, border-color .18s ease, min-height .18s ease;
+    }
+    .chunk-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .chunk-actions button {
+      min-height: 42px;
+      font-size: 13px;
+      border-radius: 14px;
+      padding: 10px 12px;
+    }
+    .chunk-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 78px;
+      min-height: 28px;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      border: 1px solid #d7e1ec;
+      background: #fff;
+      color: #60748b;
+    }
+    .chunk-status.done {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+      color: #0f766e;
+    }
+    .chunk-status.current {
+      background: #edf5ff;
+      border-color: #bed6f4;
+      color: #1f5fa7;
+    }
+    .chunk-item.active .chunk-preview {
+      min-height: 140px;
+      max-height: 220px;
+      background: #fdfefe;
+      border-color: #c8d9ee;
+      white-space: pre-wrap;
+      text-overflow: clip;
+      overflow: auto;
+    }
+    .chunk-editor {
+      margin-top: 10px;
+      border-top: 1px solid #e3ebf5;
+      padding-top: 10px;
+      display: grid;
+      gap: 10px;
+      animation: chunkOpen .16s ease-out;
+    }
+    @keyframes chunkOpen {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chunk-translation {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      border: 1px solid #c4d1df;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    .chunk-translation:focus {
+      border-color: #8fb4e0;
+      box-shadow: 0 0 0 4px rgba(47,121,207,.10);
+    }
+    .chunk-editor-actions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .chunk-editor-actions button {
+      min-height: 42px;
+      font-size: 13px;
+      border-radius: 14px;
+      padding: 10px 12px;
+    }
+    .chunk-save-note {
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.6;
+    }
+    .translate-merged {
+      margin-top: 12px;
+    }
+    .translate-merged textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      border: 1px solid #c4d1df;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+    }
     .doc-actions {
       display: grid;
       grid-template-columns: 1fr 1fr 110px;
       gap: 10px;
       margin-top: 14px;
+    }
+
+    .app-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(12px);
+      background: rgba(23,58,99,.96);
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 12px 28px rgba(18,57,102,.24);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+      z-index: 3000;
+      max-width: min(88vw, 520px);
+      text-align: center;
+    }
+    .app-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .app-toast.warn {
+      background: rgba(180,83,9,.96);
+    }
+    .translate-statusbar {
+      margin-top: 12px;
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.5;
+      background: #eef5ff;
+      border: 1px solid #c7daf3;
+      color: #1b4f86;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .translate-statusbar.ok {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+      color: #0f766e;
+    }
+    .translate-statusbar.warn {
+      background: #fff7ed;
+      border-color: #fed7aa;
+      color: #b45309;
     }
     .doc-preview {
       width: 100%;
@@ -647,6 +886,7 @@
   </style>
 </head>
 <body>
+  <div id="appToast" class="app-toast" aria-live="polite"></div>
   <div class="app">
     <div class="header-shell">
       <section class="hero">
@@ -654,11 +894,6 @@
         <p class="hero-sub">
           山發日本株式会社　社内アプリ<br>
         </p>
-        <div class="hero-badges">
-          <span class="hero-badge">デスクトップアプリ実装版</span>
-          <span class="hero-badge">service worker仕様</span>
-<span class="hero-badge">Google翻訳連動</span>
-        </div>
         <div class="header-tabs">
           <button type="button" class="header-tab active" id="tabPdfToImage">PDF → 画像</button>
           <button type="button" class="header-tab" id="tabImageToPdf">画像 → PDF</button>
@@ -796,7 +1031,7 @@
         <textarea id="ocrOutput" class="ocr-output" placeholder="抽出したテキストがここに表示されます。"></textarea>
 
         <div class="translate-box">
-          <div class="translate-head">Google翻訳で開く</div>
+          <div class="translate-head">外部翻訳に送る</div>
           <div class="translate-grid">
             <div class="field">
               <label for="translateService">翻訳サービス</label>
@@ -816,11 +1051,38 @@
             </div>
           </div>
           <div class="translate-actions">
-            <button id="openTranslateBtn" class="secondary" disabled>翻訳ページを開く</button>
-            <button id="copyTranslateTextBtn" class="secondary" disabled>テキストをコピー</button>
-            <button id="openTranslateAndCopyBtn" disabled>コピーして開く</button>
+            <button id="copyFullTextBtn" disabled>全文をコピー</button>
+            <button id="splitTranslateBtn" class="secondary" disabled>翻訳準備</button>
           </div>
-          <div class="translate-note">翻訳元言語は自動判定です。抽出した文字列を外部の翻訳ページに渡します。機密情報の送信には注意してください。</div>
+          <div id="translateStatusBar" class="translate-statusbar">文字抽出後に「翻訳準備」を押すと、翻訳先言語の設定とチャンク分割を行います。</div>
+          <div class="translate-summary" id="translateSummary">
+            <span class="translate-badge" id="translateChunkCount">分割前</span>
+            <span class="translate-badge" id="translateCurrentBadge">選択なし</span>
+            <span class="translate-badge" id="translateDoneBadge">訳文 0件</span>
+          </div>
+          <details class="translate-collapsible" id="translateChunksWrap">
+            <summary>
+              <span>翻訳チャンク一覧</span>
+              <span id="translateChunksHint">まだ分割されていません</span>
+            </summary>
+            <div class="chunk-list" id="translateChunkList"></div>
+          </details>
+
+          <details class="translate-collapsible translate-merged" id="mergedWrap">
+            <summary>
+              <span>保存済み訳文の結合結果</span>
+              <span id="mergedHint">まだありません</span>
+            </summary>
+            <div class="chunk-list">
+              <textarea id="mergedTranslationOutput" readonly placeholder="保存済みの訳文を結合するとここに表示されます。"></textarea>
+              <div class="chunk-actions">
+                <button id="copyMergedBtn" class="secondary" disabled>結合訳文をコピー</button>
+                <button id="downloadMergedBtn" class="secondary" disabled>TXT保存</button>
+                <button id="clearTranslationsBtn" class="secondary" disabled>訳文を全クリア</button>
+              </div>
+            </div>
+          </details>
+          <div class="translate-note">画面が見づらくならないよう、訳文入力欄は選択中チャンクだけ表示します。翻訳元言語は外部サービス側で自動判定します。機密情報の送信には注意してください。</div>
         </div>
       </section>
 
@@ -885,6 +1147,7 @@
 
     const APP_VERSION = "20260412-10";
     const VERSION_KEY = 'pdf-img-app-version';
+    const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
 
     const pdfInput = document.getElementById('pdfInput');
@@ -917,9 +1180,22 @@
     const ocrOutput = document.getElementById('ocrOutput');
     const translateService = document.getElementById('translateService');
     const translateTarget = document.getElementById('translateTarget');
-    const openTranslateBtn = document.getElementById('openTranslateBtn');
-    const copyTranslateTextBtn = document.getElementById('copyTranslateTextBtn');
-    const openTranslateAndCopyBtn = document.getElementById('openTranslateAndCopyBtn');
+    const splitTranslateBtn = document.getElementById('splitTranslateBtn');
+    const copyFullTextBtn = document.getElementById('copyFullTextBtn');
+    const appToast = document.getElementById('appToast');
+    const translateStatusBar = document.getElementById('translateStatusBar');
+    let copyFullTextMessageTimer = null;
+    const translateChunkCount = document.getElementById('translateChunkCount');
+    const translateCurrentBadge = document.getElementById('translateCurrentBadge');
+    const translateDoneBadge = document.getElementById('translateDoneBadge');
+    const translateChunksWrap = document.getElementById('translateChunksWrap');
+    const translateChunksHint = document.getElementById('translateChunksHint');
+    const translateChunkList = document.getElementById('translateChunkList');
+    const mergedHint = document.getElementById('mergedHint');
+    const mergedTranslationOutput = document.getElementById('mergedTranslationOutput');
+    const copyMergedBtn = document.getElementById('copyMergedBtn');
+    const downloadMergedBtn = document.getElementById('downloadMergedBtn');
+    const clearTranslationsBtn = document.getElementById('clearTranslationsBtn');
     const wordInput = document.getElementById('wordInput');
     const wordDrop = document.getElementById('wordDrop');
     const extractWordBtn = document.getElementById('extractWordBtn');
@@ -936,18 +1212,182 @@
     let wordText = "";
     let wordLayoutPages = [];
     let draggedIndex = null;
+    let translationChunks = [];
+    let currentChunkIndex = -1;
 
     appVersionText.textContent = APP_VERSION;
 
-    function getTranslateText() {
-      return (ocrOutput.value || extractedText || '').trim();
+    function stripPageMarkers(text) {
+      return (text || '')
+        .replace(/\r/g, '')
+        .replace(/^\s*<\s*\d+\s*ページ\s*>\s*$/gmu, '')
+        .replace(/^\s*[＜<]\s*\d+\s*[Pp]age\s*[＞>]\s*$/gmu, '')
+        .replace(/^\s*ページ\s*\d+\s*$/gmu, '')
+        .replace(/^\s*Page\s*\d+\s*$/gmu, '')
+        .replace(/^\s*[\-–—]?\s*\d+\s*[\-–—]?\s*$/gmu, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
     }
 
-    function updateTranslateButtons() {
-      const hasText = !!getTranslateText();
-      openTranslateBtn.disabled = !hasText;
-      copyTranslateTextBtn.disabled = !hasText;
-      openTranslateAndCopyBtn.disabled = !hasText;
+    function isLikelyHeaderLine(line) {
+      const s = (line || '').trim();
+      if (!s) return false;
+      if (/Vol\.?\s*\d+/i.test(s) || /No\.?\s*\d+/i.test(s) || /PPI\s+Asia/i.test(s)) return true;
+      if (/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}/i.test(s)) return true;
+      if (/^\d{4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,2}$/.test(s)) return true;
+      if (/^\s*(page|ページ)\s*\d+\s*$/i.test(s)) return true;
+      return false;
+    }
+
+    function isLikelyHeadingLine(line) {
+      const s = (line || '').trim();
+      if (!s) return false;
+      if (/^[■□◆◇●○▲△▼▽【】［］\[\]〈〉<>「」『』]/.test(s)) return true;
+      if (s.length <= 36 && !/[。！？!?]$/.test(s) && !/[,;；]$/.test(s)) return true;
+      if (/：$|:$/.test(s) && s.length <= 20) return true;
+      return false;
+    }
+
+    function isLikelyTableLine(line) {
+      const s = (line || '').trim();
+      if (!s) return false;
+      if (/	/.test(s) || /\s{3,}/.test(s)) return true;
+      if ((s.match(/[|｜]/g) || []).length >= 2) return true;
+      if ((s.match(/[0-9０-９]/g) || []).length >= 8 && /[:：\/\-]/.test(s)) return true;
+      const shortCells = s.split(/\s{2,}|	|[|｜]/).map(v => v.trim()).filter(Boolean);
+      if (shortCells.length >= 3 && shortCells.every(v => v.length <= 20)) return true;
+      return false;
+    }
+
+    function normalizeTranslateText(raw) {
+      const cleaned = stripPageMarkers(raw || '');
+      if (!cleaned) return '';
+      const lines = cleaned.split(/\n+/).map(v => v.trim());
+      const out = [];
+      let paragraph = '';
+
+      const flushParagraph = () => {
+        const s = paragraph.trim();
+        if (s) out.push(s);
+        paragraph = '';
+      };
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        if (!line) {
+          flushParagraph();
+          continue;
+        }
+        if (isLikelyHeaderLine(line)) continue;
+
+        const next = (lines[i + 1] || '').trim();
+        const prev = (lines[i - 1] || '').trim();
+        const shortLabel = (line.length <= 8 || /：$|:$/.test(line)) && next && !isLikelyHeadingLine(next) && !isLikelyTableLine(next);
+        if (shortLabel) {
+          line = `${line} ${next}`.trim();
+          i += 1;
+        }
+
+        if (isLikelyTableLine(line)) {
+          flushParagraph();
+          out.push(`[[TABLE]] ${line}`);
+          continue;
+        }
+
+        if (isLikelyHeadingLine(line)) {
+          flushParagraph();
+          out.push(line);
+          continue;
+        }
+
+        const joiner = paragraph ? (/[\-‐‑–—]$/.test(paragraph) ? '' : ' ') : '';
+        paragraph += `${joiner}${line}`;
+
+        const shouldBreak = /[。！？!?]$/.test(line) || (!next) || isLikelyHeadingLine(next) || isLikelyTableLine(next) || isLikelyHeaderLine(next);
+        if (shouldBreak) flushParagraph();
+      }
+      flushParagraph();
+
+      return out
+        .filter(Boolean)
+        .join('\n\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    function getTranslateText() {
+      return normalizeTranslateText(ocrOutput.value || extractedText || '');
+    }
+
+    function getChunkLimit() {
+      return translateService.value === 'deepl' ? 1400 : 1200;
+    }
+
+    function getTargetLabel(value) {
+      const map = {
+        'en': '英語',
+        'zh-CN': '中国語（簡体字）',
+        'zh-TW': '中国語（繁体字）',
+        'ja': '日本語'
+      };
+      return map[value] || value;
+    }
+
+    function splitTextSmart(text, limit) {
+      const cleaned = (text || '').replace(/\r/g, '').trim();
+      if (!cleaned) return [];
+      const paragraphs = cleaned.split(/\n{2,}/).map(v => v.trim()).filter(Boolean);
+      const chunks = [];
+      let buffer = '';
+
+      const pushBuffer = () => {
+        const value = buffer.trim();
+        if (value) chunks.push(value);
+        buffer = '';
+      };
+
+      const appendPiece = (piece) => {
+        const candidate = buffer ? `${buffer}\n\n${piece}` : piece;
+        if (candidate.length <= limit) {
+          buffer = candidate;
+          return;
+        }
+        if (buffer) pushBuffer();
+        if (piece.length <= limit) {
+          buffer = piece;
+          return;
+        }
+        const sentences = piece.split(/(?<=[。！？!?\.])\s+|(?<=。)|(?<=！)|(?<=？)/).map(v => v.trim()).filter(Boolean);
+        let local = '';
+        for (const sentence of sentences.length ? sentences : [piece]) {
+          const localCandidate = local ? `${local} ${sentence}` : sentence;
+          if (localCandidate.length <= limit) {
+            local = localCandidate;
+          } else {
+            if (local) chunks.push(local.trim());
+            if (sentence.length <= limit) {
+              local = sentence;
+            } else {
+              for (let i = 0; i < sentence.length; i += limit) {
+                chunks.push(sentence.slice(i, i + limit).trim());
+              }
+              local = '';
+            }
+          }
+        }
+        buffer = local.trim();
+      };
+
+      for (const paragraph of paragraphs) {
+        appendPiece(paragraph);
+      }
+      pushBuffer();
+      return chunks;
+    }
+
+    function getCurrentChunk() {
+      if (currentChunkIndex < 0 || currentChunkIndex >= translationChunks.length) return null;
+      return translationChunks[currentChunkIndex];
     }
 
     function buildTranslateUrl(service, target, text) {
@@ -959,22 +1399,290 @@
       return `https://translate.google.com/?sl=auto&tl=${encodeURIComponent(target)}&text=${encoded}&op=translate`;
     }
 
-    async function copyTranslateText() {
+    function getStorageHash(text) {
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+      }
+      return String(hash >>> 0);
+    }
+
+    function getTranslationStorageKey() {
+      const text = getTranslateText();
+      return text ? `${TRANSLATION_SAVE_PREFIX}${getStorageHash(text)}` : '';
+    }
+
+    function persistTranslations() {
+      const key = getTranslationStorageKey();
+      if (!key) return;
+      const payload = {
+        currentChunkIndex,
+        target: translateTarget.value,
+        service: translateService.value,
+        chunks: translationChunks.map(chunk => ({
+          text: chunk.text,
+          translation: chunk.translation || '',
+          done: !!chunk.done
+        }))
+      };
+      try {
+        localStorage.setItem(key, JSON.stringify(payload));
+      } catch (error) {
+        console.warn('translation save failed', error);
+      }
+    }
+
+    function restoreTranslations() {
+      const key = getTranslationStorageKey();
+      if (!key) return false;
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return false;
+        const payload = JSON.parse(raw);
+        if (!payload || !Array.isArray(payload.chunks)) return false;
+        if (payload.chunks.length !== translationChunks.length) return false;
+        for (let i = 0; i < translationChunks.length; i++) {
+          if (payload.chunks[i].text !== translationChunks[i].text) return false;
+        }
+        translationChunks = translationChunks.map((chunk, index) => ({
+          ...chunk,
+          translation: payload.chunks[index].translation || '',
+          done: !!payload.chunks[index].done
+        }));
+        currentChunkIndex = Math.min(Math.max(payload.currentChunkIndex ?? 0, 0), translationChunks.length - 1);
+        return true;
+      } catch (error) {
+        console.warn('translation restore failed', error);
+        return false;
+      }
+    }
+
+    function detectDefaultTranslateTarget(text) {
+      const source = (text || '').trim();
+      if (!source) return 'en';
+      const japaneseCount = (source.match(/[぀-ヿ㐀-䶿一-鿿]/g) || []).length;
+      const latinCount = (source.match(/[A-Za-z]/g) || []).length;
+      if (latinCount > 20 && japaneseCount < Math.max(5, latinCount * 0.08)) return 'ja';
+      return 'en';
+    }
+
+    function applyDefaultTranslateTarget(text) {
+      translateTarget.value = detectDefaultTranslateTarget(text);
+    }
+
+    function rebuildMergedTranslation() {
+      const saved = translationChunks
+        .map((chunk, index) => ({ index, text: (chunk.translation || '').trim() }))
+        .filter(item => item.text);
+      const merged = saved.map(item => item.text).join('\n\n');
+      mergedTranslationOutput.value = merged;
+      const count = saved.length;
+      translateDoneBadge.textContent = `訳文 ${count}件`;
+      mergedHint.textContent = count ? `${count}件を結合済み` : 'まだありません';
+      copyMergedBtn.disabled = !merged;
+      downloadMergedBtn.disabled = !merged;
+      clearTranslationsBtn.disabled = !translationChunks.length;
+    }
+
+    function renderChunkList() {
+      translateChunkList.innerHTML = '';
+      if (!translationChunks.length) {
+        translateChunkCount.textContent = '分割前';
+        translateCurrentBadge.textContent = '選択なし';
+        translateChunksHint.textContent = 'まだ分割されていません';
+        rebuildMergedTranslation();
+        return;
+      }
+
+      translateChunkCount.textContent = `${translationChunks.length}分割`;
+      translateChunksHint.textContent = `${translateService.value === 'deepl' ? 'DeepL向け' : 'Google向け'} / ${getTargetLabel(translateTarget.value)}`;
+      translationChunks.forEach((chunk, index) => {
+        const item = document.createElement('div');
+        item.className = `chunk-item${index === currentChunkIndex ? ' active' : ''}`;
+
+        const statusClass = chunk.done ? 'done' : index === currentChunkIndex ? 'current' : '';
+        const statusText = chunk.done ? '翻訳済み' : index === currentChunkIndex ? '翻訳中' : '未翻訳';
+        const preview = chunk.text.length > 120 ? `${chunk.text.slice(0, 120)}…` : chunk.text;
+        const displayText = index === currentChunkIndex ? chunk.text : preview;
+        const editorHtml = index === currentChunkIndex ? `
+          <div class="chunk-editor">
+            <textarea class="chunk-translation" data-role="translation-input" data-index="${index}" placeholder="外部翻訳サービスで得た訳文をここに貼り付けます。">${escapeHtml(chunk.translation || '')}</textarea>
+            <div class="chunk-editor-actions">
+              <button type="button" data-action="save" data-index="${index}">訳文を保存</button>
+              <button type="button" class="secondary" data-action="done" data-index="${index}">${chunk.done ? '未完了に戻す' : '翻訳済みにする'}</button>
+              <button type="button" class="secondary" data-action="prev" data-index="${index}" ${index <= 0 ? 'disabled' : ''}>前へ</button>
+              <button type="button" class="secondary" data-action="next" data-index="${index}" ${index >= translationChunks.length - 1 ? 'disabled' : ''}>次へ</button>
+            </div>
+            <div class="chunk-save-note">上の原文欄は選択すると広がります。訳文は保存するとこのブラウザ内にも保持され、最後に下の「保存済み訳文の結合結果」でまとめて確認できます。</div>
+          </div>` : '';
+
+        item.innerHTML = `
+          <div class="chunk-top">
+            <div>
+              <div class="chunk-title">${index + 1}/${translationChunks.length}</div>
+              <div class="chunk-meta">${chunk.text.length}文字</div>
+            </div>
+            <span class="chunk-status ${statusClass}">${statusText}</span>
+          </div>
+          <div class="chunk-preview">${escapeHtml(displayText)}</div>
+          <div class="chunk-actions">
+            <button type="button" class="secondary" data-action="select" data-index="${index}">選択</button>
+            <button type="button" class="secondary" data-action="translate" data-index="${index}">翻訳</button>
+            <button type="button" class="secondary" data-action="done" data-index="${index}">${chunk.done ? '未完了に戻す' : '翻訳済み'}</button>
+          </div>
+          ${editorHtml}
+        `;
+        translateChunkList.appendChild(item);
+      });
+
+      translateCurrentBadge.textContent = currentChunkIndex >= 0 ? `選択中 ${currentChunkIndex + 1}/${translationChunks.length}` : '選択なし';
+      rebuildMergedTranslation();
+    }
+
+    function buildTranslationChunks(autoMode = false) {
+      const text = getTranslateText();
+      if (!text) return;
+      const limit = getChunkLimit();
+      translationChunks = splitTextSmart(text, limit).map((chunkText, index) => ({
+        id: index + 1,
+        text: chunkText,
+        translation: '',
+        done: false
+      }));
+      currentChunkIndex = translationChunks.length ? 0 : -1;
+      const restored = restoreTranslations();
+      translateChunksWrap.open = true;
+      renderChunkList();
+      const splitMessage = restored
+        ? `文字抽出が完了しました。翻訳先言語を設定し、翻訳用項目分割も実行しました。保存済み訳文も復元しました。`
+        : `文字抽出が完了しました。翻訳先言語を設定し、翻訳用項目分割も実行しました。`;
+      setStatus(ocrStatus, splitMessage, 'ok');
+      setTranslateStatus(`${translationChunks.length}件に分割済みです。必要なチャンクの「翻訳」ボタンから進めてください。`, 'ok');
+      if (autoMode) {
+        document.getElementById('translateChunksWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function selectChunk(index) {
+      if (index < 0 || index >= translationChunks.length) return;
+      currentChunkIndex = index;
+      renderChunkList();
+    }
+
+    async function copyTranslateText(index = currentChunkIndex, showMessage = true) {
+      const chunk = typeof index === 'number' ? translationChunks[index] : getCurrentChunk();
+      const text = chunk ? chunk.text : '';
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        if (showMessage) {
+          const copiedIndex = typeof index === 'number' ? index + 1 : currentChunkIndex + 1;
+          setStatus(ocrStatus, `チャンク ${copiedIndex}/${translationChunks.length} をコピーしました。外部翻訳へ貼り付けできます。`, 'ok');
+          setTranslateStatus(`チャンク ${copiedIndex}/${translationChunks.length} をコピーしました。`, 'ok');
+        }
+      } catch (error) {
+        setStatus(ocrStatus, 'コピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
+        setTranslateStatus('コピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
+      }
+    }
+
+    function flashCopyFullButtonMessage(message, ok = true) {
+      if (!copyFullTextBtn) return;
+      if (copyFullTextMessageTimer) clearTimeout(copyFullTextMessageTimer);
+      copyFullTextBtn.textContent = message;
+      copyFullTextBtn.classList.toggle('secondary', !ok);
+      copyFullTextBtn.disabled = false;
+      copyFullTextMessageTimer = setTimeout(() => {
+        copyFullTextBtn.textContent = '全文をコピー';
+        copyFullTextBtn.classList.add('secondary');
+        copyFullTextBtn.disabled = !getTranslateText();
+      }, 1800);
+    }
+
+    async function copyFullTranslateText() {
       const text = getTranslateText();
       if (!text) return;
       try {
         await navigator.clipboard.writeText(text);
-        setStatus(ocrStatus, '抽出テキストをコピーしました。翻訳ページへ貼り付けできます。', 'ok');
+        setStatus(ocrStatus, '抽出した全文をコピーしました。', 'ok');
+        setTranslateStatus('全文をコピーしました。外部翻訳へそのまま貼り付けできます。', 'ok');
+        showToast('全文をコピーしました');
       } catch (error) {
-        setStatus(ocrStatus, 'コピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
+        setStatus(ocrStatus, '全文のコピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
+        setTranslateStatus('全文のコピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
+        showToast('全文のコピーに失敗しました', false);
       }
     }
 
-    function openTranslatePage() {
-      const text = getTranslateText();
+    function openTranslatePage(index = currentChunkIndex) {
+      const chunk = typeof index === 'number' ? translationChunks[index] : getCurrentChunk();
+      const text = chunk ? chunk.text : '';
       if (!text) return;
       const url = buildTranslateUrl(translateService.value, translateTarget.value, text);
+      const chunkNo = typeof index === 'number' ? index + 1 : currentChunkIndex + 1;
+      setTranslateStatus(`チャンク ${chunkNo}/${translationChunks.length} を${translateService.value === 'deepl' ? 'DeepL' : 'Google翻訳'}で開きました。`, 'ok');
       window.open(url, '_blank', 'noopener');
+    }
+
+    function getChunkTranslationValue(index = currentChunkIndex) {
+      const area = translateChunkList.querySelector(`textarea[data-role="translation-input"][data-index="${index}"]`);
+      return area ? area.value : ((translationChunks[index] && translationChunks[index].translation) || '');
+    }
+
+    function saveCurrentTranslation(index = currentChunkIndex, markDone = false) {
+      const chunk = translationChunks[index];
+      if (!chunk) return;
+      chunk.translation = (getChunkTranslationValue(index) || '').trim();
+      if (markDone) {
+        chunk.done = !!chunk.translation ? true : !chunk.done;
+      }
+      persistTranslations();
+      renderChunkList();
+      setStatus(ocrStatus, `チャンク ${index + 1}/${translationChunks.length} の訳文を保存しました。`, 'ok');
+      setTranslateStatus(`チャンク ${index + 1}/${translationChunks.length} の訳文を保存しました。`, 'ok');
+    }
+
+    function toggleCurrentDone(index = currentChunkIndex) {
+      const chunk = translationChunks[index];
+      if (!chunk) return;
+      chunk.translation = (getChunkTranslationValue(index) || '').trim();
+      chunk.done = !chunk.done;
+      persistTranslations();
+      renderChunkList();
+    }
+
+    async function copyMergedTranslation() {
+      const text = (mergedTranslationOutput.value || '').trim();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus(ocrStatus, '結合した訳文をコピーしました。', 'ok');
+      } catch (error) {
+        setStatus(ocrStatus, '結合訳文のコピーに失敗しました。', 'warn');
+      }
+    }
+
+    function downloadMergedTranslation() {
+      const text = (mergedTranslationOutput.value || '').trim();
+      if (!text) return;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      saveAs(blob, 'translated_output.txt');
+    }
+
+    function clearAllTranslations() {
+      translationChunks = translationChunks.map(chunk => ({ ...chunk, translation: '', done: false }));
+      if (currentChunkIndex >= translationChunks.length) currentChunkIndex = translationChunks.length - 1;
+      const key = getTranslationStorageKey();
+      if (key) localStorage.removeItem(key);
+      renderChunkList();
+      setStatus(ocrStatus, '保存済みの訳文をクリアしました。', 'ok');
+    }
+
+    function updateTranslateButtons() {
+      const hasText = !!getTranslateText();
+      splitTranslateBtn.disabled = !hasText;
+      copyFullTextBtn.disabled = !hasText;
+      renderChunkList();
     }
 
     function showUpdateModal() {
@@ -1004,20 +1712,95 @@
 
     updateNowBtn.addEventListener('click', reloadToLatest);
     closeUpdateBtn.addEventListener('click', hideUpdateModal);
-    openTranslateBtn.addEventListener('click', openTranslatePage);
-    copyTranslateTextBtn.addEventListener('click', copyTranslateText);
-    openTranslateAndCopyBtn.addEventListener('click', async () => {
-      await copyTranslateText();
-      openTranslatePage();
+    splitTranslateBtn.addEventListener('click', () => {
+      const text = getTranslateText();
+      if (!text) {
+        setTranslateStatus('先に文字抽出を行ってください。', 'warn');
+        return;
+      }
+      applyDefaultTranslateTarget(text);
+      buildTranslationChunks(false);
     });
-    ocrOutput.addEventListener('input', updateTranslateButtons);
+    copyFullTextBtn.addEventListener('click', copyFullTranslateText);
+    copyMergedBtn.addEventListener('click', copyMergedTranslation);
+    downloadMergedBtn.addEventListener('click', downloadMergedTranslation);
+    clearTranslationsBtn.addEventListener('click', clearAllTranslations);
+    translateChunkList.addEventListener('input', (event) => {
+      const area = event.target.closest('textarea[data-role="translation-input"]');
+      if (!area) return;
+      const index = Number(area.dataset.index);
+      if (!translationChunks[index]) return;
+      translationChunks[index].translation = area.value;
+      rebuildMergedTranslation();
+    });
+    translateChunkList.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const index = Number(button.dataset.index);
+      const action = button.dataset.action;
+      if (action === 'select') {
+        selectChunk(index);
+        return;
+      }
+      if (action === 'translate') {
+        selectChunk(index);
+        await copyTranslateText(index);
+        openTranslatePage(index);
+        return;
+      }
+      if (action === 'save') {
+        selectChunk(index);
+        saveCurrentTranslation(index, false);
+        return;
+      }
+      if (action === 'done') {
+        selectChunk(index);
+        toggleCurrentDone(index);
+        return;
+      }
+      if (action === 'prev') {
+        selectChunk(index - 1);
+        return;
+      }
+      if (action === 'next') {
+        selectChunk(index + 1);
+        return;
+      }
+    });
+    ocrOutput.addEventListener('input', () => {
+      translationChunks = [];
+      currentChunkIndex = -1;
+      applyDefaultTranslateTarget(getTranslateText());
+      updateTranslateButtons();
+      translateChunkList.innerHTML = '';
+      renderChunkList();
+    });
     translateService.addEventListener('change', updateTranslateButtons);
     translateTarget.addEventListener('change', updateTranslateButtons);
     checkVersionPopup();
+    renderChunkList();
 
     function setStatus(el, text, type = '') {
       el.textContent = text;
       el.className = `status ${type}`.trim();
+    }
+
+    function setTranslateStatus(text, type = '') {
+      if (!translateStatusBar) return;
+      translateStatusBar.textContent = text;
+      translateStatusBar.className = `translate-statusbar ${type}`.trim();
+    }
+
+    let toastHideTimer = null;
+    function showToast(message, ok = true) {
+      if (!appToast) return;
+      appToast.textContent = message;
+      appToast.classList.toggle('warn', !ok);
+      appToast.classList.add('show');
+      if (toastHideTimer) clearTimeout(toastHideTimer);
+      toastHideTimer = setTimeout(() => {
+        appToast.classList.remove('show');
+      }, 1800);
     }
 
     function formatBytes(bytes) {
@@ -1864,6 +2647,9 @@ function normalizeLineForRepeat(text) {
       clearOcrBtn.disabled = false;
       extractedText = '';
       ocrOutput.value = '';
+      translationChunks = [];
+      currentChunkIndex = -1;
+      renderChunkList();
       setStatus(ocrStatus, `選択中: ${pdf.name}\nサイズ: ${formatBytes(pdf.size)}`, 'ok');
     });
 
@@ -2034,10 +2820,14 @@ function normalizeLineForRepeat(text) {
       extractedText = '';
       ocrInput.value = '';
       ocrOutput.value = '';
+      translationChunks = [];
+      currentChunkIndex = -1;
+      renderChunkList();
       extractTextBtn.disabled = true;
       downloadTextBtn.disabled = true;
       clearOcrBtn.disabled = true;
       setStatus(ocrStatus, 'PDFを選択してください。');
+      setTranslateStatus('文字抽出後に「翻訳準備」を押すと、翻訳先言語の設定とチャンク分割を行います。');
     });
 
     extractTextBtn.addEventListener('click', async () => {
@@ -2051,8 +2841,20 @@ function normalizeLineForRepeat(text) {
         const pages = await extractPdfStructuredContent(selectedOcrPdf, ocrStatus, '抽出');
         extractedText = buildOcrTextFromPages(pages);
         ocrOutput.value = extractedText;
+        translationChunks = [];
+        currentChunkIndex = -1;
+        updateTranslateButtons();
+        renderChunkList();
         downloadTextBtn.disabled = !extractedText.trim();
-        setStatus(ocrStatus, extractedText.trim() ? '文字抽出が完了しました。ヘッダー・フッター候補は自動除外しています。' : '文字情報を抽出できませんでした。画像PDFの可能性があります。', extractedText.trim() ? 'ok' : 'warn');
+        if (extractedText.trim()) {
+          splitTranslateBtn.disabled = false;
+          copyFullTextBtn.disabled = false;
+          setStatus(ocrStatus, '文字抽出が完了しました。必要に応じて「翻訳準備」を押してください。', 'ok');
+          setTranslateStatus('文字抽出が完了しました。「翻訳準備」で翻訳先言語の設定とチャンク分割を行います。');
+        } else {
+          setStatus(ocrStatus, '文字情報を抽出できませんでした。画像PDFの可能性があります。', 'warn');
+          setTranslateStatus('文字情報を抽出できませんでした。', 'warn');
+        }
       } catch (err) {
         console.error(err);
         setStatus(ocrStatus, `文字抽出に失敗しました。
