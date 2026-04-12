@@ -822,7 +822,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-7";
+    const APP_VERSION = "20260412-9";
     const VERSION_KEY = 'pdf-img-app-version';
     const { jsPDF } = window.jspdf;
 
@@ -1156,7 +1156,9 @@ function normalizeLineForRepeat(text) {
           : Math.max(Math.abs(Number(t[3]) || 0), Math.abs(Number(t[0]) || 0), 10);
         const fontSize = Math.max(9, Math.min(28, Math.round(heightBase)));
         const text = String(item.str || '').replace(/\s+/g, ' ').trim();
-        return { x, yTop, width, height: heightBase, fontSize, text };
+        const fontName = String(item.fontName || '');
+        const isBold = /(bold|black|heavy|demi|medium|semibold|w6|w7|w8|w9)/i.test(fontName);
+        return { x, yTop, width, height: heightBase, fontSize, text, fontName, isBold };
       }).filter(run => run.text);
     }
 
@@ -1225,6 +1227,7 @@ function normalizeLineForRepeat(text) {
       return lines
         .map(line => {
           const text = buildLineText(line.parts);
+          const boldParts = line.parts.filter(part => part.isBold).length;
           return {
             yTop: line.yTop,
             xMin: line.xMin,
@@ -1232,6 +1235,7 @@ function normalizeLineForRepeat(text) {
             width: Math.max(80, line.xMax - line.xMin + 6),
             height: line.height,
             fontSize: line.fontSize,
+            isBold: boldParts / Math.max(1, line.parts.length) >= 0.45,
             text
           };
         })
@@ -1342,28 +1346,316 @@ function normalizeLineForRepeat(text) {
         .replace(/"/g, '&quot;');
     }
 
+
+    function clusterColumnStarts(lines, pageWidth) {
+      if (!lines.length) return [{ x: 0, min: 0, max: pageWidth || 0 }];
+      const threshold = Math.max(28, pageWidth * 0.05);
+      const sorted = [...lines].sort((a, b) => a.xMin - b.xMin);
+      const groups = [];
+      for (const line of sorted) {
+        const x = Number(line.xMin) || 0;
+        let group = groups.find(g => Math.abs(g.x - x) <= threshold);
+        if (!group) {
+          group = { x, count: 0, total: 0, min: x, max: x };
+          groups.push(group);
+        }
+        group.count += 1;
+        group.total += x;
+        group.x = group.total / group.count;
+        group.min = Math.min(group.min, x);
+        group.max = Math.max(group.max, x + (Number(line.widthPx || line.width) || 0));
+      }
+      const filtered = groups
+        .filter(g => g.count >= Math.max(2, Math.ceil(lines.length * 0.06)))
+        .sort((a, b) => a.x - b.x)
+        .slice(0, 4);
+      return filtered.length ? filtered : [{ x: 0, min: 0, max: pageWidth || 0 }];
+    }
+
+    function normalizeColumns(columns, contentLeft, contentRight) {
+      if (!columns.length) return [{ left: contentLeft, right: contentRight, center: (contentLeft + contentRight) / 2 }];
+      const sorted = [...columns].sort((a, b) => a.x - b.x);
+      return sorted.map((col, i) => {
+        const prev = sorted[i - 1];
+        const next = sorted[i + 1];
+        const left = i === 0 ? contentLeft : (prev.x + col.x) / 2;
+        const right = i === sorted.length - 1 ? contentRight : (col.x + next.x) / 2;
+        return { ...col, left, right, center: (left + right) / 2 };
+      });
+    }
+
+    function assignLineToColumn(line, columns) {
+      if (!columns.length) return 0;
+      let best = 0;
+      let bestDist = Infinity;
+      const x = Number(line.xMin) || 0;
+      for (let i = 0; i < columns.length; i++) {
+        const dist = Math.abs(columns[i].center - x);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = i;
+        }
+      }
+      return best;
+    }
+
+    function buildRowsFromLines(lines) {
+      if (!lines.length) return [];
+      const sorted = [...lines].sort((a, b) => {
+        if (Math.abs(a.yTop - b.yTop) > 3) return a.yTop - b.yTop;
+        return a.xMin - b.xMin;
+      });
+      const rows = [];
+      for (const line of sorted) {
+        const last = rows[rows.length - 1];
+        const tolerance = Math.max(6, (Number(line.fontSize) || 12) * 0.55);
+        if (last && Math.abs(last.y - line.yTop) <= tolerance) {
+          last.lines.push(line);
+          last.y = (last.y * last.count + line.yTop) / (last.count + 1);
+          last.count += 1;
+        } else {
+          rows.push({ y: line.yTop, count: 1, lines: [line] });
+        }
+      }
+      return rows.map(r => ({ y: r.y, lines: r.lines.sort((a, b) => a.xMin - b.xMin) }));
+    }
+
+    function detectTextAlign(line, bounds, fontPx, scale, pageWidth, pageHeight) {
+      const xMin = Number(line.xMin) || 0;
+      const xMax = Number(line.xMax) || (xMin + (Number(line.widthPx || line.width) || 0));
+      const yTop = Number(line.yTop) || 0;
+      const leftGap = Math.max(0, xMin - bounds.left);
+      const rightGap = Math.max(0, bounds.right - xMax);
+      const colWidth = Math.max(1, bounds.right - bounds.left);
+      const lineWidth = Math.max(1, xMax - xMin);
+      const text = String(line.text || '');
+      const compactText = text.replace(/\s+/g, '');
+      const digitCount = (compactText.match(/[0-9０-９]/g) || []).length;
+      const digitRatio = digitCount / Math.max(1, compactText.length);
+      const punctuationRatio = ((compactText.match(/[\-–—:;,.%$¥€£|/]/g) || []).length) / Math.max(1, compactText.length);
+      const hasWideInternalSpacing = /\s{3,}/.test(text);
+      const mostlyCjkParagraph = /[一-龯ぁ-んァ-ン]/.test(compactText) && compactText.length >= 10;
+      const chartLike = (digitRatio >= 0.22 && compactText.length <= 60) || hasWideInternalSpacing || punctuationRatio >= 0.16;
+      const nearPageTop = yTop < pageHeight * 0.16;
+      const tolerance = Math.max(5, fontPx * 0.42, 6 / Math.max(scale, 0.01));
+
+      if (chartLike || (mostlyCjkParagraph && compactText.length > 16) || lineWidth > colWidth * 0.74) {
+        return 'left';
+      }
+      if (nearPageTop && lineWidth >= colWidth * 0.16 && lineWidth <= colWidth * 0.55 && Math.abs(leftGap - rightGap) <= tolerance) {
+        return 'center';
+      }
+      if (nearPageTop && compactText.length <= 26 && lineWidth <= colWidth * 0.4 && rightGap <= tolerance && leftGap > tolerance * 2.4) {
+        return 'right';
+      }
+      return 'left';
+    }
+
+    function isBulletLikeText(text) {
+      return /^([■□▪▫●○・◆◇▶▷☑✓✔]|\(?\d+\)|[0-9]+[.)]|[A-Za-z][.)]|[-–—])/u.test(String(text || '').trim());
+    }
+
+    function isParagraphLikeLine(line, bounds) {
+      const text = String(line.text || '').trim();
+      if (!text || text.length < 10) return false;
+      if (line.isHeading || line.isBold) return false;
+      if (isBulletLikeText(text)) return false;
+      if (/[:：]$/.test(text)) return false;
+      if (/\s{3,}/.test(text)) return false;
+      const compact = text.replace(/\s+/g, '');
+      const hasCjk = /[一-龯ぁ-んァ-ン]/.test(compact);
+      const hasSentenceMarks = /[。、，．,]/.test(text);
+      if (!hasCjk && !hasSentenceMarks) return false;
+      const xMin = Number(line.xMin) || 0;
+      const xMax = Number(line.xMax) || (xMin + (Number(line.widthPx || line.width) || 0));
+      const colWidth = Math.max(1, bounds.right - bounds.left);
+      const rightGap = Math.max(0, bounds.right - xMax);
+      const leftGap = Math.max(0, xMin - bounds.left);
+      const widthRatio = (xMax - xMin) / colWidth;
+      return widthRatio >= 0.7 && rightGap <= Math.max(18, colWidth * 0.12) && leftGap <= Math.max(32, colWidth * 0.12);
+    }
+
+    function canMergeParagraphLines(current, next, bounds) {
+      if (!current || !next) return false;
+      if (!isParagraphLikeLine(current, bounds)) return false;
+      const gapY = Math.abs((Number(next.yTop) || 0) - (Number(current.yTop) || 0));
+      const baseFont = Math.max(1, Number(current.fontSize) || 12, Number(next.fontSize) || 12);
+      if (gapY > baseFont * 1.9) return false;
+      if (Math.abs((Number(next.xMin) || 0) - (Number(current.xMin) || 0)) > Math.max(18, baseFont * 1.4)) return false;
+      const fontRatio = Math.abs((Number(next.fontSize) || 12) - (Number(current.fontSize) || 12)) / baseFont;
+      if (fontRatio > 0.18) return false;
+      if (next.isHeading || next.isBold || isBulletLikeText(next.text)) return false;
+      return true;
+    }
+
+    function buildBlocksFromLines(lines, columns) {
+      const blocks = [];
+      const sorted = [...lines].sort((a, b) => {
+        if (Math.abs(a.yTop - b.yTop) > 3) return a.yTop - b.yTop;
+        return a.xMin - b.xMin;
+      });
+      for (let i = 0; i < sorted.length; i++) {
+        const line = sorted[i];
+        const colIdx = assignLineToColumn(line, columns);
+        const bounds = columns[colIdx] || columns[0];
+        if (isParagraphLikeLine(line, bounds)) {
+          const paragraphLines = [line];
+          let j = i;
+          while (j + 1 < sorted.length) {
+            const next = sorted[j + 1];
+            const nextColIdx = assignLineToColumn(next, columns);
+            if (nextColIdx !== colIdx) break;
+            if (!canMergeParagraphLines(sorted[j], next, bounds)) break;
+            paragraphLines.push(next);
+            j += 1;
+          }
+          if (paragraphLines.length >= 2) {
+            blocks.push({ type: 'paragraph', lines: paragraphLines, bounds });
+            i = j;
+            continue;
+          }
+        }
+        blocks.push({ type: 'line', lines: [line], bounds });
+      }
+      return blocks;
+    }
+
+    function estimatePageTypography(lines, pageWidth, pageHeight) {
+      const contentLines = lines.filter(line => (String(line.text || '').trim().length > 0));
+      const totalChars = contentLines.reduce((sum, line) => sum + String(line.text || '').replace(/\s+/g, '').length, 0);
+      const fonts = contentLines.map(line => Number(line.fontSize) || 12).filter(v => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
+      const medianFont = fonts.length ? fonts[Math.floor(fonts.length / 2)] : 12;
+      const xMins = contentLines.map(line => Number(line.xMin) || 0);
+      const xMaxs = contentLines.map(line => Number(line.xMax) || ((Number(line.xMin) || 0) + (Number(line.widthPx || line.width) || 0)));
+      const yTops = contentLines.map(line => Number(line.yTop) || 0);
+      const yBottoms = contentLines.map(line => (Number(line.yTop) || 0) + (Number(line.heightPx || line.height) || medianFont * 1.05));
+      const contentLeft = xMins.length ? Math.max(0, Math.min(...xMins)) : 0;
+      const contentRight = xMaxs.length ? Math.min(pageWidth, Math.max(...xMaxs)) : pageWidth;
+      const contentTop = yTops.length ? Math.max(0, Math.min(...yTops)) : 0;
+      const contentBottom = yBottoms.length ? Math.min(pageHeight, Math.max(...yBottoms)) : pageHeight;
+      const contentWidth = Math.max(1, contentRight - contentLeft);
+      const contentHeight = Math.max(1, contentBottom - contentTop);
+
+      const sortedY = [...new Set(contentLines.map(line => Math.round(Number(line.yTop) || 0)).sort((a, b) => a - b))];
+      const gaps = [];
+      for (let i = 1; i < sortedY.length; i++) {
+        const gap = sortedY[i] - sortedY[i - 1];
+        if (gap > 1 && gap < medianFont * 3.2) gaps.push(gap);
+      }
+      gaps.sort((a, b) => a - b);
+      const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : medianFont * 1.02;
+      const lineHeightRatio = Math.max(0.88, Math.min(1.08, medianGap / Math.max(1, medianFont)));
+
+      const coverageX = contentWidth / Math.max(1, pageWidth);
+      const coverageY = contentHeight / Math.max(1, pageHeight);
+      const avgCharsPerLine = totalChars / Math.max(1, contentLines.length);
+      const estCharsPerLine = contentWidth / Math.max(1, medianFont * 0.88);
+      const estLineCount = contentHeight / Math.max(1, medianFont * lineHeightRatio);
+      const capacity = estCharsPerLine * estLineCount;
+      const density = totalChars / Math.max(1, capacity);
+
+      let fontAdjust = 1;
+      if (density > 1.02) fontAdjust = Math.max(0.72, 1 - ((density - 1.02) * 0.42));
+      else if (density < 0.82 && coverageY < 0.72) fontAdjust = Math.min(1.01, 1 + ((0.82 - density) * 0.05));
+
+      let adaptiveMargin = 0;
+      if (totalChars < 600 && coverageX < 0.78) adaptiveMargin = 6;
+      else if (totalChars < 1200 && coverageX < 0.84) adaptiveMargin = 3;
+      else adaptiveMargin = 0;
+
+      return {
+        totalChars,
+        medianFont,
+        density,
+        fontAdjust,
+        adaptiveMargin,
+        avgCharsPerLine,
+        contentLeft,
+        contentRight,
+        contentTop,
+        contentBottom,
+        lineHeightRatio
+      };
+    }
+
+    function buildAbsoluteLineHtml(line, bounds, metrics) {
+      const { scale, pageMarginX, pageMarginY, fontAdjust, lineHeightRatio, pageWidth, pageHeight } = metrics;
+      const rawFont = Number(line.fontSize || line.fontPx || 12) || 12;
+      const fontPx = Math.max(8, Math.min(30, Math.round(rawFont * scale * fontAdjust * 10) / 10));
+      const rawXMin = Number(line.xMin) || 0;
+      const rawXMax = Number(line.xMax) || (rawXMin + (Number(line.widthPx || line.width) || 120));
+      const top = Math.max(0, Math.round((Number(line.yTop) || 0) * scale + pageMarginY));
+      const leftFromPage = rawXMin * scale + pageMarginX;
+      const boundsLeft = bounds.left * scale + pageMarginX;
+      const boundsRight = bounds.right * scale + pageMarginX;
+      const lineWidth = Math.max(12, (rawXMax - rawXMin) * scale);
+      const colWidth = Math.max(lineWidth, boundsRight - boundsLeft);
+      const align = detectTextAlign(line, bounds, fontPx, scale, pageWidth, pageHeight);
+      const left = align === 'left' ? Math.round(leftFromPage) : Math.round(boundsLeft);
+      const width = Math.round(align === 'left' ? lineWidth : colWidth);
+      const fontWeight = (line.isHeading || line.isBold) ? '700' : '400';
+      return `<div style="position:absolute;left:${left}px;top:${top}px;width:${width}px;font-size:${fontPx}px;line-height:${lineHeightRatio.toFixed(2)};text-align:${align};font-weight:${fontWeight};white-space:pre-wrap;">${escapeWordHtml(line.text)}</div>`;
+    }
+
+    function buildParagraphBlockHtml(block, metrics) {
+      const { scale, pageMarginX, pageMarginY, fontAdjust, lineHeightRatio } = metrics;
+      const first = block.lines[0];
+      const last = block.lines[block.lines.length - 1];
+      const rawFont = Number(first.fontSize || first.fontPx || 12) || 12;
+      const fontPx = Math.max(8, Math.min(30, Math.round(rawFont * scale * fontAdjust * 10) / 10));
+      const left = Math.round((Number(first.xMin) || 0) * scale + pageMarginX);
+      const top = Math.max(0, Math.round((Number(first.yTop) || 0) * scale + pageMarginY));
+      const right = Math.round((block.bounds.right || ((Number(last.xMax) || 0))) * scale + pageMarginX);
+      const bottom = Math.round(((Number(last.yTop) || 0) + (Number(last.height) || rawFont * 1.15)) * scale + pageMarginY);
+      const width = Math.max(40, right - left);
+      const minHeight = Math.max(fontPx * lineHeightRatio, bottom - top + 2);
+      const text = block.lines.map(line => String(line.text || '').trim()).join('');
+      return `<div style="position:absolute;left:${left}px;top:${top}px;width:${width}px;min-height:${Math.round(minHeight)}px;font-size:${fontPx}px;line-height:${lineHeightRatio.toFixed(2)};text-align:left;font-weight:400;white-space:normal;word-break:normal;overflow-wrap:break-word;">${escapeWordHtml(text)}</div>`;
+    }
+
     function buildWordHtmlFromPages(pages, title) {
+      const targetPageWidth = 760;
       const renderedPages = pages
         .filter(page => page.lines && page.lines.length)
         .map(page => {
           const pageWidth = Math.max(1, Number(page.pageWidth) || 595);
           const pageHeight = Math.max(1, Number(page.pageHeight) || 842);
-          const width = 800;
-          const scale = width / pageWidth;
-          const height = Math.max(980, Math.round(pageHeight * scale));
-          const body = page.lines.map(line => {
-            const left = Math.round((Number(line.leftPx) || 0) * scale);
-            const top = Math.round((Number(line.topPx) || 0) * scale);
-            const lineWidth = Math.max(110, Math.round((Number(line.widthPx) || 120) * scale));
-            const fontPx = Math.max(10, Math.round((Number(line.fontPx) || 12) * scale * 0.92));
-            const text = escapeWordHtml(line.text);
-            const fontWeight = line.isHeading ? '700' : '400';
-            return `<div style="position:absolute;left:${left}px;top:${top}px;width:${lineWidth}px;font-size:${fontPx}px;line-height:1.2;white-space:pre-wrap;font-weight:${fontWeight};">${text}</div>`;
+          const lines = [...page.lines].sort((a, b) => {
+            if (Math.abs(a.yTop - b.yTop) > 3) return a.yTop - b.yTop;
+            return a.xMin - b.xMin;
+          });
+
+          const pageCssHeight = Math.round(targetPageWidth * (pageHeight / pageWidth));
+          const baseScale = targetPageWidth / pageWidth;
+          const pageStats = estimatePageTypography(lines, pageWidth, pageHeight);
+          const scale = baseScale;
+          const pageMarginX = Math.max(0, Math.round(pageStats.adaptiveMargin));
+          const pageMarginY = Math.max(0, Math.round(pageStats.adaptiveMargin * 0.45));
+          const effectiveLeft = Math.max(0, pageStats.contentLeft - (pageMarginX / Math.max(scale, 0.01)));
+          const effectiveRight = Math.min(pageWidth, pageStats.contentRight + (pageMarginX / Math.max(scale, 0.01)));
+
+          const columns = normalizeColumns(clusterColumnStarts(lines, pageWidth), effectiveLeft, effectiveRight);
+          const blocks = buildBlocksFromLines(lines, columns);
+          const body = blocks.map(block => {
+            const metrics = {
+              scale,
+              pageMarginX,
+              pageMarginY,
+              fontAdjust: pageStats.fontAdjust,
+              lineHeightRatio: pageStats.lineHeightRatio,
+              pageWidth,
+              pageHeight
+            };
+            if (block.type === 'paragraph') {
+              return buildParagraphBlockHtml(block, metrics);
+            }
+            return buildAbsoluteLineHtml(block.lines[0], block.bounds || { left: effectiveLeft, right: effectiveRight }, metrics);
           }).join('');
-          return `<div style="page-break-after:always;margin:0 auto 24px auto;width:${width}px;height:${height}px;position:relative;background:#fff;overflow:hidden;">${body}</div>`;
+
+          return `<div style="page-break-after:always;margin:0 auto 12px auto;width:${targetPageWidth}px;height:${pageCssHeight}px;position:relative;background:#fff;overflow:hidden;">${body}</div>`;
         }).join('');
 
-      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:20px;}div{box-sizing:border-box;}</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:6px;}div{box-sizing:border-box;}</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
     }
     setupDropzone(ocrDrop, ocrInput, files => {
       const pdf = files.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
