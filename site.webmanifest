@@ -1,26 +1,26 @@
 {
   "name": "PDF⇔画像 変換アプリ",
-  "short_name": "PDF画像変換",
-  "start_url": "./pdf_jpg_converter_app_v4_mobile_update_icon.html?v=20260412-1",
+  "short_name": "PDF変換",
+  "start_url": "/pdf_converter/",
+  "scope": "/pdf_converter/",
   "display": "standalone",
-  "background_color": "#eaf0f6",
+  "background_color": "#ffffff",
   "theme_color": "#124b8a",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/pdf_converter/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "icon-512.png",
+      "src": "/pdf_converter/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "apple-touch-icon.png",
+      "src": "/pdf_converter/apple-touch-icon.png",
       "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     }
   ]
 }
