@@ -1134,40 +1134,123 @@
 
 
 
-    function groupTextItemsIntoLines(items) {
-      const sorted = [...items].sort((a,b) => {
-        const ay = a.transform ? a.transform[5] : 0;
-        const by = b.transform ? b.transform[5] : 0;
-        if (Math.abs(by - ay) > 2) return by - ay;
-        const ax = a.transform ? a.transform[4] : 0;
-        const bx = b.transform ? b.transform[4] : 0;
-        return ax - bx;
-      });
-      const lines = [];
-      for (const item of sorted) {
-        const y = item.transform ? item.transform[5] : 0;
-        const x = item.transform ? item.transform[4] : 0;
-        const text = String(item.str || '').trim();
-        if (!text) continue;
-        let line = lines.find(l => Math.abs(l.y - y) <= 2.5);
-        if (!line) {
-          line = { y, parts: [] };
-          lines.push(line);
-        }
-        line.parts.push({ x, text });
-      }
-      return lines.map(l => ({
-        y: l.y,
-        text: l.parts.sort((a,b)=>a.x-b.x).map(p=>p.text).join(' ').replace(/\s+/g,' ').trim()
-      })).filter(l => l.text);
-    }
-
-    function normalizeLineForRepeat(text) {
-      return text
-        .replace(/\d+/g, '#')
+    
+function normalizeLineForRepeat(text) {
+      return String(text || '')
+        .replace(/\b\d+\b/g, '#')
         .replace(/[0-9０-９]+/g, '#')
         .replace(/\s+/g, ' ')
         .trim();
+    }
+
+    function makeTextRuns(items, viewport) {
+      return (items || []).map(item => {
+        const t = Array.isArray(item.transform) ? item.transform : [1, 0, 0, 1, 0, 0];
+        const rawX = Number(t[4]);
+        const rawY = Number(t[5]);
+        const x = Number.isFinite(rawX) ? rawX : 0;
+        const yTop = Number.isFinite(rawY) ? ((viewport && Number.isFinite(viewport.height) ? viewport.height : 0) - rawY) : 0;
+        const width = Number.isFinite(Number(item.width)) ? Number(item.width) : 0;
+        const heightBase = Number.isFinite(Number(item.height)) && Number(item.height) > 0
+          ? Number(item.height)
+          : Math.max(Math.abs(Number(t[3]) || 0), Math.abs(Number(t[0]) || 0), 10);
+        const fontSize = Math.max(9, Math.min(28, Math.round(heightBase)));
+        const text = String(item.str || '').replace(/\s+/g, ' ').trim();
+        return { x, yTop, width, height: heightBase, fontSize, text };
+      }).filter(run => run.text);
+    }
+
+    function buildLineText(parts) {
+      if (!parts.length) return '';
+      const sorted = [...parts].sort((a, b) => a.x - b.x);
+      let text = '';
+      let prevEnd = null;
+      let prevFont = sorted[0].fontSize || 12;
+      for (const part of sorted) {
+        if (prevEnd !== null) {
+          const gap = part.x - prevEnd;
+          const spaceUnit = Math.max(3.5, prevFont * 0.42);
+          if (gap > spaceUnit * 2.7) {
+            text += '    ';
+          } else if (gap > spaceUnit * 0.55) {
+            text += ' ';
+          }
+        }
+        text += part.text;
+        prevEnd = part.x + Math.max(part.width, part.text.length * (part.fontSize * 0.48));
+        prevFont = part.fontSize || prevFont;
+      }
+      return text.replace(/\s+$/g, '').trim();
+    }
+
+    function groupTextItemsIntoLines(items, viewport) {
+      const runs = makeTextRuns(items, viewport).sort((a, b) => {
+        if (Math.abs(a.yTop - b.yTop) > 2) return a.yTop - b.yTop;
+        return a.x - b.x;
+      });
+
+      const lines = [];
+      for (const run of runs) {
+        let target = null;
+        let bestDelta = Infinity;
+        for (const line of lines) {
+          const tolerance = Math.max(3, Math.min(8, Math.max(line.height, run.height) * 0.55));
+          const delta = Math.abs(line.yTop - run.yTop);
+          if (delta <= tolerance && delta < bestDelta) {
+            target = line;
+            bestDelta = delta;
+          }
+        }
+
+        if (!target) {
+          target = {
+            yTop: run.yTop,
+            parts: [],
+            xMin: run.x,
+            xMax: run.x + Math.max(run.width, run.text.length * (run.fontSize * 0.48)),
+            height: run.height,
+            fontSize: run.fontSize
+          };
+          lines.push(target);
+        }
+
+        target.parts.push(run);
+        target.yTop = (target.yTop * (target.parts.length - 1) + run.yTop) / target.parts.length;
+        target.xMin = Math.min(target.xMin, run.x);
+        target.xMax = Math.max(target.xMax, run.x + Math.max(run.width, run.text.length * (run.fontSize * 0.48)));
+        target.height = Math.max(target.height, run.height);
+        target.fontSize = Math.max(target.fontSize, run.fontSize);
+      }
+
+      return lines
+        .map(line => {
+          const text = buildLineText(line.parts);
+          return {
+            yTop: line.yTop,
+            xMin: line.xMin,
+            xMax: line.xMax,
+            width: Math.max(80, line.xMax - line.xMin + 6),
+            height: line.height,
+            fontSize: line.fontSize,
+            text
+          };
+        })
+        .filter(line => line.text)
+        .sort((a, b) => {
+          if (Math.abs(a.yTop - b.yTop) > 2) return a.yTop - b.yTop;
+          return a.xMin - b.xMin;
+        });
+    }
+
+    function detectColumnMode(lines, pageWidth) {
+      if (!lines.length || !pageWidth) return { enabled: false, splitX: pageWidth / 2 };
+      const mid = pageWidth / 2;
+      const gutter = Math.max(28, pageWidth * 0.04);
+      const leftOnly = lines.filter(l => l.xMax < mid - gutter).length;
+      const rightOnly = lines.filter(l => l.xMin > mid + gutter).length;
+      const crossing = lines.filter(l => l.xMin < mid - gutter && l.xMax > mid + gutter).length;
+      const enabled = leftOnly >= 6 && rightOnly >= 6 && crossing < Math.max(8, lines.length * 0.35);
+      return { enabled, splitX: mid };
     }
 
     async function extractPdfStructuredContent(file, statusEl, modeLabel) {
@@ -1183,17 +1266,17 @@
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
         const viewport = page.getViewport({ scale: 1 });
-        const pageHeight = viewport.height || 0;
-        const pageWidth = viewport.width || 0;
-        const lines = groupTextItemsIntoLines(textContent.items);
+        const pageHeight = Number(viewport.height) || 0;
+        const pageWidth = Number(viewport.width) || 0;
+        const lines = groupTextItemsIntoLines(textContent.items, viewport);
         pageData.push({ pageNum, lines, pageHeight, pageWidth });
 
-        lines.forEach(line => {
+        for (const line of lines) {
           const key = normalizeLineForRepeat(line.text);
-          if (!key || key.length < 2) return;
-          if (line.y >= pageHeight * 0.88) headerMap.set(key, (headerMap.get(key) || 0) + 1);
-          if (line.y <= pageHeight * 0.12) footerMap.set(key, (footerMap.get(key) || 0) + 1);
-        });
+          if (!key || key.length < 2) continue;
+          if (line.yTop <= pageHeight * 0.12) headerMap.set(key, (headerMap.get(key) || 0) + 1);
+          if (line.yTop >= pageHeight * 0.90) footerMap.set(key, (footerMap.get(key) || 0) + 1);
+        }
       }
 
       const threshold = Math.max(2, Math.ceil(pdf.numPages * 0.6));
@@ -1204,22 +1287,42 @@
         const filtered = lines.filter(line => {
           const key = normalizeLineForRepeat(line.text);
           if (!key) return false;
-          if (line.y >= pageHeight * 0.88 && repeatingHeaders.has(key)) return false;
-          if (line.y <= pageHeight * 0.12 && repeatingFooters.has(key)) return false;
+          if (line.yTop <= pageHeight * 0.12 && repeatingHeaders.has(key)) return false;
+          if (line.yTop >= pageHeight * 0.90 && repeatingFooters.has(key)) return false;
           return true;
-        }).map(line => ({
+        });
+
+        const columnMode = detectColumnMode(filtered, pageWidth);
+        const medianFont = (() => {
+          if (!filtered.length) return 12;
+          const arr = filtered.map(l => l.fontSize).sort((a,b)=>a-b);
+          return arr[Math.floor(arr.length / 2)] || 12;
+        })();
+
+        const ordered = columnMode.enabled
+          ? [
+              ...filtered.filter(l => l.xMax < columnMode.splitX).sort((a,b)=>Math.abs(a.yTop-b.yTop)>2?a.yTop-b.yTop:a.xMin-b.xMin),
+              ...filtered.filter(l => l.xMin >= columnMode.splitX).sort((a,b)=>Math.abs(a.yTop-b.yTop)>2?a.yTop-b.yTop:a.xMin-b.xMin),
+              ...filtered.filter(l => l.xMin < columnMode.splitX && l.xMax >= columnMode.splitX).sort((a,b)=>Math.abs(a.yTop-b.yTop)>2?a.yTop-b.yTop:a.xMin-b.xMin)
+            ]
+          : filtered;
+
+        const normalizedLines = ordered.map(line => ({
           ...line,
-          indentRatio: pageWidth ? Math.max(0, Math.min(0.9, line.x / pageWidth)) : 0,
-          topRatio: pageHeight ? Math.max(0, Math.min(1, 1 - (line.y / pageHeight))) : 0,
-          fontPx: Math.max(11, Math.min(26, Math.round((line.height || 12) * 1.35)))
+          leftPx: Math.max(0, line.xMin),
+          topPx: Math.max(0, line.yTop),
+          widthPx: Math.max(100, Math.min(pageWidth, line.width)),
+          fontPx: Math.max(10, Math.min(28, Math.round(line.fontSize * 1.08))),
+          isHeading: line.fontSize >= medianFont * 1.22 || (/^[A-Z0-9 ,.&:/()'’-]{6,}$/.test(line.text) && line.text.length <= 90)
         }));
 
         return {
           pageNum,
           pageWidth,
           pageHeight,
-          lines: filtered,
-          text: filtered.map(l => l.text).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+          columnMode,
+          lines: normalizedLines,
+          text: normalizedLines.map(l => l.text).join('\n').replace(/\n{3,}/g, '\n\n').trim()
         };
       });
     }
@@ -1243,20 +1346,25 @@
       const renderedPages = pages
         .filter(page => page.lines && page.lines.length)
         .map(page => {
-          const width = 760;
-          const height = Math.max(980, Math.round(width * (page.pageHeight / Math.max(1, page.pageWidth))));
+          const pageWidth = Math.max(1, Number(page.pageWidth) || 595);
+          const pageHeight = Math.max(1, Number(page.pageHeight) || 842);
+          const width = 800;
+          const scale = width / pageWidth;
+          const height = Math.max(980, Math.round(pageHeight * scale));
           const body = page.lines.map(line => {
-            const left = Math.round(line.indentRatio * width);
-            const top = Math.round(line.topRatio * height);
+            const left = Math.round((Number(line.leftPx) || 0) * scale);
+            const top = Math.round((Number(line.topPx) || 0) * scale);
+            const lineWidth = Math.max(110, Math.round((Number(line.widthPx) || 120) * scale));
+            const fontPx = Math.max(10, Math.round((Number(line.fontPx) || 12) * scale * 0.92));
             const text = escapeWordHtml(line.text);
-            return `<div style="position:absolute;left:${left}px;top:${top}px;width:${Math.max(120, width - left - 18)}px;font-size:${line.fontPx}px;line-height:1.25;white-space:pre-wrap;">${text}</div>`;
+            const fontWeight = line.isHeading ? '700' : '400';
+            return `<div style="position:absolute;left:${left}px;top:${top}px;width:${lineWidth}px;font-size:${fontPx}px;line-height:1.2;white-space:pre-wrap;font-weight:${fontWeight};">${text}</div>`;
           }).join('');
-          return `<div style="page-break-after:always;margin:0 auto 24px auto;width:${width}px;height:${height}px;position:relative;background:#fff;">${body}</div>`;
+          return `<div style="page-break-after:always;margin:0 auto 24px auto;width:${width}px;height:${height}px;position:relative;background:#fff;overflow:hidden;">${body}</div>`;
         }).join('');
 
-      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:20px;}</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:20px;}div{box-sizing:border-box;}</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
     }
-
     setupDropzone(ocrDrop, ocrInput, files => {
       const pdf = files.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
       if (!pdf) {
