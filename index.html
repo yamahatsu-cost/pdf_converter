@@ -11,11 +11,11 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>PDF⇔画像 変換アプリ</title>
-  <link rel="manifest" href="site.webmanifest?v=20260412-7" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-7" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-7" />
-  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-7" />
-  <link rel="icon" href="favicon.ico?v=20260412-7" />
+  <link rel="manifest" href="site.webmanifest?v=20260412-8" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-8" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-8" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-8" />
+  <link rel="icon" href="favicon.ico?v=20260412-8" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -868,6 +868,7 @@
     let extractedText = "";
     let selectedWordPdf = null;
     let wordText = "";
+    let wordLayoutPages = [];
     let draggedIndex = null;
 
     appVersionText.textContent = APP_VERSION;
@@ -1169,7 +1170,7 @@
         .trim();
     }
 
-    async function extractPdfTextWithHeaderFooterRemoval(file, statusEl, modeLabel) {
+    async function extractPdfStructuredContent(file, statusEl, modeLabel) {
       const arrayBuffer = await readFileAsArrayBuffer(file);
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
       const pdf = await loadingTask.promise;
@@ -1183,8 +1184,9 @@
         const textContent = await page.getTextContent();
         const viewport = page.getViewport({ scale: 1 });
         const pageHeight = viewport.height || 0;
+        const pageWidth = viewport.width || 0;
         const lines = groupTextItemsIntoLines(textContent.items);
-        pageData.push({ pageNum, lines, pageHeight });
+        pageData.push({ pageNum, lines, pageHeight, pageWidth });
 
         lines.forEach(line => {
           const key = normalizeLineForRepeat(line.text);
@@ -1195,21 +1197,64 @@
       }
 
       const threshold = Math.max(2, Math.ceil(pdf.numPages * 0.6));
-      const repeatingHeaders = new Set([...headerMap].filter(([,count]) => count >= threshold).map(([k]) => k));
-      const repeatingFooters = new Set([...footerMap].filter(([,count]) => count >= threshold).map(([k]) => k));
+      const repeatingHeaders = new Set([...headerMap].filter(([, count]) => count >= threshold).map(([k]) => k));
+      const repeatingFooters = new Set([...footerMap].filter(([, count]) => count >= threshold).map(([k]) => k));
 
-      const pages = pageData.map(({pageNum, lines, pageHeight}) => {
+      return pageData.map(({ pageNum, lines, pageHeight, pageWidth }) => {
         const filtered = lines.filter(line => {
           const key = normalizeLineForRepeat(line.text);
           if (!key) return false;
           if (line.y >= pageHeight * 0.88 && repeatingHeaders.has(key)) return false;
           if (line.y <= pageHeight * 0.12 && repeatingFooters.has(key)) return false;
           return true;
-        });
-        return filtered.map(l => l.text).join('\n').replace(/\n{3,}/g, '\n\n').trim();
-      });
+        }).map(line => ({
+          ...line,
+          indentRatio: pageWidth ? Math.max(0, Math.min(0.9, line.x / pageWidth)) : 0,
+          topRatio: pageHeight ? Math.max(0, Math.min(1, 1 - (line.y / pageHeight))) : 0,
+          fontPx: Math.max(11, Math.min(26, Math.round((line.height || 12) * 1.35)))
+        }));
 
-      return pages.filter(Boolean).join('\n\n');
+        return {
+          pageNum,
+          pageWidth,
+          pageHeight,
+          lines: filtered,
+          text: filtered.map(l => l.text).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+        };
+      });
+    }
+
+    function buildOcrTextFromPages(pages) {
+      return pages
+        .filter(page => page.text)
+        .map(page => `${page.pageNum > 1 ? '\n\n' : ''}<${page.pageNum}ページ>\n\n${page.text}`)
+        .join('');
+    }
+
+    function escapeWordHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function buildWordHtmlFromPages(pages, title) {
+      const renderedPages = pages
+        .filter(page => page.lines && page.lines.length)
+        .map(page => {
+          const width = 760;
+          const height = Math.max(980, Math.round(width * (page.pageHeight / Math.max(1, page.pageWidth))));
+          const body = page.lines.map(line => {
+            const left = Math.round(line.indentRatio * width);
+            const top = Math.round(line.topRatio * height);
+            const text = escapeWordHtml(line.text);
+            return `<div style="position:absolute;left:${left}px;top:${top}px;width:${Math.max(120, width - left - 18)}px;font-size:${line.fontPx}px;line-height:1.25;white-space:pre-wrap;">${text}</div>`;
+          }).join('');
+          return `<div style="page-break-after:always;margin:0 auto 24px auto;width:${width}px;height:${height}px;position:relative;background:#fff;">${body}</div>`;
+        }).join('');
+
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:20px;}</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
     }
 
     setupDropzone(ocrDrop, ocrInput, files => {
@@ -1248,6 +1293,7 @@
       downloadWordBtn.disabled = true;
       clearWordBtn.disabled = false;
       wordText = '';
+      wordLayoutPages = [];
       wordPreview.value = '';
       setStatus(wordStatus, `選択中: ${pdf.name}
 サイズ: ${formatBytes(pdf.size)}`, 'ok');
@@ -1411,7 +1457,8 @@
       setStatus(ocrStatus, 'PDFから文字を抽出しています...');
 
       try {
-        extractedText = await extractPdfTextWithHeaderFooterRemoval(selectedOcrPdf, ocrStatus, '抽出');
+        const pages = await extractPdfStructuredContent(selectedOcrPdf, ocrStatus, '抽出');
+        extractedText = buildOcrTextFromPages(pages);
         ocrOutput.value = extractedText;
         downloadTextBtn.disabled = !extractedText.trim();
         setStatus(ocrStatus, extractedText.trim() ? '文字抽出が完了しました。ヘッダー・フッター候補は自動除外しています。' : '文字情報を抽出できませんでした。画像PDFの可能性があります。', extractedText.trim() ? 'ok' : 'warn');
@@ -1451,9 +1498,10 @@ ${err.message || err}`, 'warn');
       setStatus(wordStatus, 'Word用テキストを抽出しています...');
 
       try {
-        wordText = await extractPdfTextWithHeaderFooterRemoval(selectedWordPdf, wordStatus, '解析');
+        wordLayoutPages = await extractPdfStructuredContent(selectedWordPdf, wordStatus, '解析');
+        wordText = wordLayoutPages.map(page => page.text).filter(Boolean).join('\n\n');
         wordPreview.value = wordText;
-        downloadWordBtn.disabled = !wordText.trim();
+        downloadWordBtn.disabled = !(wordLayoutPages.some(page => page.lines && page.lines.length));
         setStatus(wordStatus, wordText.trim() ? 'Word用テキストの抽出が完了しました。' : '文字情報を抽出できませんでした。画像PDFの可能性があります。', wordText.trim() ? 'ok' : 'warn');
       } catch (err) {
         console.error(err);
@@ -1465,14 +1513,9 @@ ${err.message || err}`, 'warn');
     });
 
     downloadWordBtn.addEventListener('click', () => {
-      if (!wordText.trim()) return;
+      if (!wordLayoutPages.some(page => page.lines && page.lines.length)) return;
       const baseName = selectedWordPdf ? getBaseName(selectedWordPdf.name) : 'pdf-word';
-      const escaped = wordText
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\n/g, '<br>');
-      const docHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${baseName}</title></head><body style="font-family:Meiryo,'Yu Gothic',sans-serif;line-height:1.7;font-size:12pt;">${escaped}</body></html>`;
+      const docHtml = buildWordHtmlFromPages(wordLayoutPages, baseName);
       const blob = new Blob([docHtml], { type: 'application/msword;charset=utf-8' });
       saveAs(blob, `${baseName}.doc`);
     });
