@@ -270,6 +270,9 @@
       .header-tabs {
         gap: 8px;
         padding: 6px;
+        grid-template-columns: repeat(5, minmax(112px, 1fr));
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
       }
       .header-tab {
         min-height: 46px;
@@ -277,9 +280,21 @@
         font-size: 13px;
       }
       .ocr-actions,
-      .translate-grid,
-      .translate-actions {
+      .translate-grid {
         grid-template-columns: 1fr;
+      }
+      .translate-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: stretch;
+      }
+      .translate-actions button {
+        min-height: 56px;
+        padding: 12px 10px;
+        font-size: 15px;
+        line-height: 1.35;
+        writing-mode: horizontal-tb;
+        white-space: normal;
+        word-break: keep-all;
       }
     }
 
@@ -559,6 +574,51 @@
       border-color: #8fb4e0;
       box-shadow: 0 0 0 4px rgba(47,121,207,.10);
     }
+    .ocr-preview-wrap {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #f8fbfe;
+      padding: 12px;
+    }
+    .ocr-preview-head {
+      font-size: 14px;
+      font-weight: 800;
+      color: #17406f;
+      margin-bottom: 10px;
+    }
+    .ocr-preview-note {
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .ocr-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .ocr-preview-card {
+      background: #fff;
+      border: 1px solid #d9e3ef;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .ocr-preview-card img {
+      width: 100%;
+      display: block;
+      background: #fff;
+    }
+    .ocr-preview-label {
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #31557f;
+      border-top: 1px solid #e6edf5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .translate-box {
       margin-top: 14px;
       padding: 14px;
@@ -579,7 +639,7 @@
     }
     .translate-actions {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
       margin-top: 12px;
     }
@@ -1122,15 +1182,15 @@
           <h2>5. 画像OCR</h2>
         </div>
         <p class="desc">
-          スキャンPDFを画像として読み込み、OCRで文字を抽出します。
-          テキストが埋め込まれていないPDF向けです。処理はブラウザ内で行われますが、ページ数が多いPDFでは時間がかかることがあります。
+          スキャンPDFだけでなく、JPG / PNG 画像からもOCRで文字を抽出します。
+          処理はブラウザ内で行われますが、ページ数や画像枚数が多い場合は時間がかかることがあります。
         </p>
 
         <label class="dropzone" id="imageOcrDrop" for="imageOcrInput">
-          <strong>OCRしたいPDFをここへドロップ または クリック</strong>
-          <span>対応形式: PDF / 1ファイル / スキャンPDF対応</span>
+          <strong>OCRしたいPDFまたは画像をここへドロップ または クリック</strong>
+          <span>対応形式: PDF / JPG / JPEG / PNG / 複数画像対応</span>
         </label>
-        <input type="file" id="imageOcrInput" accept="application/pdf" />
+        <input type="file" id="imageOcrInput" accept="application/pdf,image/jpeg,.jpg,.jpeg,image/png,.png" multiple />
 
         <div class="fields two">
           <div class="field">
@@ -1157,7 +1217,12 @@
           <button id="clearImageOcrBtn" class="secondary" disabled>クリア</button>
         </div>
 
-        <div id="imageOcrStatus" class="status">PDFを選択してください。</div>
+        <div id="imageOcrStatus" class="status">PDFまたは画像を選択してください。</div>
+        <div class="ocr-preview-wrap">
+          <div class="ocr-preview-head">OCR認識画像プレビュー</div>
+          <div class="ocr-preview-note">OCR前に白黒強調した画像を表示します。PDFをOCRした場合も各ページの認識画像を確認できます。</div>
+          <div id="imageOcrPreviewGrid" class="ocr-preview-grid"></div>
+        </div>
         <textarea id="imageOcrOutput" class="ocr-output" placeholder="OCRで抽出したテキストがここに表示されます。"></textarea>
       </section>
 
@@ -1193,7 +1258,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-11";
+    const APP_VERSION = "20260412-13";
     const VERSION_KEY = 'pdf-img-app-version';
     const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
@@ -1260,6 +1325,7 @@
     const clearImageOcrBtn = document.getElementById('clearImageOcrBtn');
     const imageOcrStatus = document.getElementById('imageOcrStatus');
     const imageOcrOutput = document.getElementById('imageOcrOutput');
+    const imageOcrPreviewGrid = document.getElementById('imageOcrPreviewGrid');
 
     let selectedPdf = null;
     let selectedImages = [];
@@ -1268,8 +1334,9 @@
     let selectedWordPdf = null;
     let wordText = "";
     let wordLayoutPages = [];
-    let selectedImageOcrPdf = null;
+    let selectedImageOcrFiles = [];
     let imageOcrText = '';
+    let imageOcrPreviewItems = [];
     let draggedIndex = null;
     let translationChunks = [];
     let currentChunkIndex = -1;
@@ -1754,12 +1821,33 @@
       updateModal.setAttribute('aria-hidden', 'true');
     }
 
-    function checkVersionPopup() {
-      const previous = localStorage.getItem(VERSION_KEY);
-      if (previous && previous !== APP_VERSION) {
-        showUpdateModal();
+    async function checkVersionPopup() {
+      let previous = '';
+      try {
+        previous = localStorage.getItem(VERSION_KEY) || '';
+      } catch (error) {
+        previous = '';
       }
-      localStorage.setItem(VERSION_KEY, APP_VERSION);
+      const remoteVersion = await detectRemoteVersion();
+      if ((previous && previous !== APP_VERSION) || (remoteVersion && remoteVersion !== APP_VERSION)) {
+        setTimeout(showUpdateModal, 180);
+      }
+      try {
+        localStorage.setItem(VERSION_KEY, APP_VERSION);
+      } catch (error) {}
+    }
+
+    async function detectRemoteVersion() {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('version_check', Date.now().toString());
+        const res = await fetch(url.toString(), { cache: 'no-store' });
+        const html = await res.text();
+        const match = html.match(/const\s+APP_VERSION\s*=\s*["']([^"']+)["']/);
+        return match ? match[1] : '';
+      } catch (error) {
+        return '';
+      }
     }
 
     function reloadToLatest() {
@@ -2701,12 +2789,105 @@ function normalizeLineForRepeat(text) {
       return canvas;
     }
 
+    function canvasToDataUrl(canvas) {
+      try {
+        return canvas.toDataURL('image/png');
+      } catch (error) {
+        return '';
+      }
+    }
+
+    function renderImageOcrPreview() {
+      if (!imageOcrPreviewGrid) return;
+      if (!imageOcrPreviewItems.length) {
+        imageOcrPreviewGrid.innerHTML = '';
+        return;
+      }
+      imageOcrPreviewGrid.innerHTML = imageOcrPreviewItems.map(item => `
+        <div class="ocr-preview-card">
+          <img src="${item.src}" alt="${escapeHtml(item.label)}">
+          <div class="ocr-preview-label">${escapeHtml(item.label)}</div>
+        </div>
+      `).join('');
+    }
+
+    function clearImageOcrPreview() {
+      imageOcrPreviewItems = [];
+      renderImageOcrPreview();
+    }
+
+    function enhanceCanvasForOcr(sourceCanvas) {
+      const canvas = document.createElement('canvas');
+      canvas.width = sourceCanvas.width;
+      canvas.height = sourceCanvas.height;
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      ctx.drawImage(sourceCanvas, 0, 0);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = img.data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+        d[i] = gray;
+        d[i + 1] = gray;
+        d[i + 2] = gray;
+        sum += gray;
+      }
+      const avg = sum / (d.length / 4 || 1);
+      const threshold = Math.max(135, Math.min(205, Math.round(avg + 8)));
+      for (let i = 0; i < d.length; i += 4) {
+        let gray = d[i];
+        gray = gray < threshold ? 0 : 255;
+        d[i] = gray;
+        d[i + 1] = gray;
+        d[i + 2] = gray;
+      }
+      ctx.putImageData(img, 0, 0);
+      return canvas;
+    }
+
     function cleanOcrResult(text) {
       return String(text || '')
         .replace(/\r/g, '')
         .replace(/[ \t]+\n/g, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
+    }
+
+    async function loadImageFileToCanvas(file, scale) {
+      const dataUrl = await readFileAsDataUrl(file);
+      const img = await loadImage(dataUrl);
+      const ratio = Number(scale || 2);
+      const canvas = document.createElement('canvas');
+      const width = Math.max(1, Math.round(img.width * ratio));
+      const height = Math.max(1, Math.round(img.height * ratio));
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+      return canvas;
+    }
+
+    async function runCanvasOcr(canvas, label, total, lang) {
+      setStatus(imageOcrStatus, `${label} をOCR処理しています...`);
+      const prepared = enhanceCanvasForOcr(canvas);
+      imageOcrPreviewItems.push({ label, src: canvasToDataUrl(prepared) });
+      renderImageOcrPreview();
+      const result = await Tesseract.recognize(prepared, lang, {
+        logger: m => {
+          if (m && m.status === 'recognizing text' && typeof m.progress === 'number') {
+            const percent = Math.round(m.progress * 100);
+            setStatus(imageOcrStatus, `${label} をOCR処理しています... ${percent}%`);
+          }
+        },
+        tessedit_pageseg_mode: 6,
+        preserve_interword_spaces: '1'
+      });
+      const text = cleanOcrResult(result?.data?.text || '');
+      return text;
     }
 
     async function runPdfImageOcr(file) {
@@ -2721,17 +2902,23 @@ function normalizeLineForRepeat(text) {
         setStatus(imageOcrStatus, `${pageNum} / ${pdf.numPages} ページを画像化しています...`);
         const page = await pdf.getPage(pageNum);
         const canvas = await renderPdfPageToCanvas(page, scale);
-        setStatus(imageOcrStatus, `${pageNum} / ${pdf.numPages} ページをOCR処理しています...`);
-        const result = await Tesseract.recognize(canvas, lang, {
-          logger: m => {
-            if (m && m.status === 'recognizing text' && typeof m.progress === 'number') {
-              const percent = Math.round(m.progress * 100);
-              setStatus(imageOcrStatus, `${pageNum} / ${pdf.numPages} ページをOCR処理しています... ${percent}%`);
-            }
-          }
-        });
-        const pageText = cleanOcrResult(result?.data?.text || '');
+        const pageText = await runCanvasOcr(canvas, `${pageNum} / ${pdf.numPages} ページ`, pdf.numPages, lang);
         if (pageText) pages.push(`<${pageNum}ページ>\n\n${pageText}`);
+      }
+      return pages.join('\n\n');
+    }
+
+    async function runImageFilesOcr(files) {
+      const lang = imageOcrLang.value || 'jpn';
+      const scale = Number(imageOcrScale.value || 2);
+      const pages = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const label = `${i + 1} / ${files.length} 枚目`;
+        setStatus(imageOcrStatus, `${label} を読み込んでいます...`);
+        const canvas = await loadImageFileToCanvas(file, scale);
+        const pageText = await runCanvasOcr(canvas, label, files.length, lang);
+        if (pageText) pages.push(`<${i + 1}枚目: ${file.name}>\n\n${pageText}`);
       }
       return pages.join('\n\n');
     }
@@ -2979,43 +3166,63 @@ ${err.message || err}`, 'warn');
 
 
     setupDropzone(imageOcrDrop, imageOcrInput, files => {
-      const pdf = files.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
-      if (!pdf) {
-        selectedImageOcrPdf = null;
+      const supported = files.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name) || /^image\/(jpeg|png)$/i.test(f.type) || /\.(jpe?g|png)$/i.test(f.name));
+      if (!supported.length) {
+        selectedImageOcrFiles = [];
         runImageOcrBtn.disabled = true;
         downloadImageOcrBtn.disabled = true;
         clearImageOcrBtn.disabled = true;
-        setStatus(imageOcrStatus, 'PDFファイルを選択してください。', 'warn');
+        setStatus(imageOcrStatus, 'PDFまたは画像ファイルを選択してください。', 'warn');
         return;
       }
-      selectedImageOcrPdf = pdf;
+      selectedImageOcrFiles = supported;
       imageOcrText = '';
       imageOcrOutput.value = '';
+      clearImageOcrPreview();
       runImageOcrBtn.disabled = false;
       downloadImageOcrBtn.disabled = true;
       clearImageOcrBtn.disabled = false;
-      setStatus(imageOcrStatus, `選択中: ${pdf.name}\nサイズ: ${formatBytes(pdf.size)}`, 'ok');
+      const names = supported.slice(0, 3).map(file => file.name).join(' / ');
+      const extra = supported.length > 3 ? ` ほか${supported.length - 3}件` : '';
+      setStatus(imageOcrStatus, `選択中: ${names}${extra}\n件数: ${supported.length}`, 'ok');
     });
 
     clearImageOcrBtn.addEventListener('click', () => {
-      selectedImageOcrPdf = null;
+      selectedImageOcrFiles = [];
       imageOcrText = '';
       imageOcrInput.value = '';
       imageOcrOutput.value = '';
+      clearImageOcrPreview();
       runImageOcrBtn.disabled = true;
       downloadImageOcrBtn.disabled = true;
       clearImageOcrBtn.disabled = true;
-      setStatus(imageOcrStatus, 'PDFを選択してください。');
+      setStatus(imageOcrStatus, 'PDFまたは画像を選択してください。');
     });
 
     runImageOcrBtn.addEventListener('click', async () => {
-      if (!selectedImageOcrPdf) return;
+      if (!selectedImageOcrFiles.length) return;
+      clearImageOcrPreview();
       runImageOcrBtn.disabled = true;
       downloadImageOcrBtn.disabled = true;
       clearImageOcrBtn.disabled = true;
       imageOcrOutput.value = '';
       try {
-        imageOcrText = await runPdfImageOcr(selectedImageOcrPdf);
+        const pdfFiles = selectedImageOcrFiles.filter(file => file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
+        const imageFiles = selectedImageOcrFiles.filter(file => !pdfFiles.includes(file));
+        const parts = [];
+        for (const pdfFile of pdfFiles) {
+          const pdfText = await runPdfImageOcr(pdfFile);
+          if (pdfText.trim()) {
+            parts.push(`[PDF: ${pdfFile.name}]\n\n${pdfText}`);
+          }
+        }
+        if (imageFiles.length) {
+          const imageText = await runImageFilesOcr(imageFiles);
+          if (imageText.trim()) {
+            parts.push(imageFiles.length === 1 ? `[画像: ${imageFiles[0].name}]\n\n${imageText}` : `[画像OCR]\n\n${imageText}`);
+          }
+        }
+        imageOcrText = parts.join('\n\n');
         imageOcrOutput.value = imageOcrText;
         downloadImageOcrBtn.disabled = !imageOcrText.trim();
         setStatus(imageOcrStatus, imageOcrText.trim() ? 'OCRが完了しました。必要に応じてTXT保存してください。' : 'OCR結果が空でした。解像度や言語設定を見直してください。', imageOcrText.trim() ? 'ok' : 'warn');
@@ -3023,14 +3230,14 @@ ${err.message || err}`, 'warn');
         console.error(err);
         setStatus(imageOcrStatus, `OCR処理に失敗しました。\n${err.message || err}`, 'warn');
       } finally {
-        runImageOcrBtn.disabled = !selectedImageOcrPdf;
-        clearImageOcrBtn.disabled = !selectedImageOcrPdf;
+        runImageOcrBtn.disabled = !selectedImageOcrFiles.length;
+        clearImageOcrBtn.disabled = !selectedImageOcrFiles.length;
       }
     });
 
     downloadImageOcrBtn.addEventListener('click', () => {
       if (!imageOcrText.trim()) return;
-      const baseName = selectedImageOcrPdf ? getBaseName(selectedImageOcrPdf.name) : 'pdf-image-ocr';
+      const baseName = selectedImageOcrFiles.length === 1 ? getBaseName(selectedImageOcrFiles[0].name) : 'image-ocr';
       const blob = new Blob([imageOcrText], { type: 'text/plain;charset=utf-8' });
       saveAs(blob, `${baseName}-ocr.txt`);
     });
