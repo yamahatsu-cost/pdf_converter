@@ -11,11 +11,11 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>PDF⇔画像 変換アプリ</title>
-  <link rel="manifest" href="/pdf_converter/site.webmanifest?v=20260412-22" />
-  <link rel="apple-touch-icon" href="/pdf_converter/apple-touch-icon.png?v=20260412-22" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/pdf_converter/icon-32.png?v=20260412-22" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/pdf_converter/icon-16.png?v=20260412-22" />
-  <link rel="icon" href="/pdf_converter/favicon.ico?v=20260412-22" />
+  <link rel="manifest" href="/pdf_converter/site.webmanifest?v=20260412-23" />
+  <link rel="apple-touch-icon" href="/pdf_converter/apple-touch-icon.png?v=20260412-23" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/pdf_converter/icon-32.png?v=20260412-23" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/pdf_converter/icon-16.png?v=20260412-23" />
+  <link rel="icon" href="/pdf_converter/favicon.ico?v=20260412-23" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
     function countPdfPageTextChars(items) {
       if (!items || !items.length) return 0;
@@ -622,6 +622,32 @@
       letter-spacing: .02em;
       font-weight: 800;
     }
+
+    .hero-title-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+      max-width: 100%;
+    }
+    .hero-logo {
+      height: clamp(30px, 4.8vw, 46px);
+      width: auto;
+      object-fit: contain;
+      flex: 0 0 auto;
+      display: block;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.18));
+    }
+    .hero-title-text {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 6vw, 40px);
+      line-height: 1.14;
+      letter-spacing: .02em;
+      font-weight: 800;
+      color: inherit;
+    }
+
     .hero-sub {
       margin: 0;
       font-size: clamp(14px, 3.5vw, 17px);
@@ -807,6 +833,18 @@
         border-radius: 0 0 12px 12px;
         padding: 18px 16px 14px;
       }
+
+      .hero-title-link {
+        gap: 8px;
+      }
+      .hero-logo {
+        height: 28px;
+      }
+      .hero-title-text {
+        margin-bottom: 6px;
+        font-size: clamp(24px, 7vw, 32px);
+      }
+
       .header-tabs {
         gap: 8px;
         padding: 6px;
@@ -1524,7 +1562,10 @@
   <div class="app">
     <div class="header-shell">
       <section class="hero">
-        <h1>PDF ⇔ 画像 変換</h1>
+        <a href="/pdf_converter/" class="hero-title-link" aria-label="ホームへ戻る">
+          <img src="/pdf_converter/yamahatsu_transparent.png?v=20260412-23" alt="山發日本ロゴ" class="hero-logo" />
+          <span class="hero-title-text">PDF ⇔ 画像 変換</span>
+        </a>
         <p class="hero-sub">
           山發日本株式会社　社内アプリ<br>
         </p>
@@ -1849,7 +1890,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-22";
+    const APP_VERSION = "20260412-23";
     const VERSION_KEY = 'pdf-img-app-version';
     const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
