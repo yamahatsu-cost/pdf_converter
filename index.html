@@ -11,11 +11,11 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>PDF⇔画像 変換アプリ</title>
-  <link rel="manifest" href="/pdf_converter/site.webmanifest?v=20260412-22" />
-  <link rel="apple-touch-icon" href="/pdf_converter/apple-touch-icon.png?v=20260412-22" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/pdf_converter/icon-32.png?v=20260412-22" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/pdf_converter/icon-16.png?v=20260412-22" />
-  <link rel="icon" href="/pdf_converter/favicon.ico?v=20260412-22" />
+  <link rel="manifest" href="site.webmanifest?v=20260412-25" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-25" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-25" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-25" />
+  <link rel="icon" href="favicon.ico?v=20260412-25" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
     function countPdfPageTextChars(items) {
       if (!items || !items.length) return 0;
@@ -1299,6 +1299,7 @@
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      min-width: 0;
       transition: max-height .18s ease, background-color .18s ease, border-color .18s ease, min-height .18s ease;
     }
     .chunk-actions {
@@ -1517,7 +1518,71 @@
       line-height: 1.6;
     }
 
-  </style>
+  
+    @media (max-width: 640px) {
+      .app {
+        overflow-x: hidden;
+      }
+      .card,
+      .translate-box,
+      .translate-collapsible,
+      .chunk-item,
+      .chunk-editor,
+      .chunk-list,
+      .chunk-preview,
+      .chunk-translation,
+      .translate-merged textarea,
+      .ocr-output,
+      .doc-preview,
+      textarea {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      .translate-summary {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+      }
+      .translate-badge {
+        min-width: 0 !important;
+        width: 100% !important;
+        justify-content: center !important;
+        text-align: center !important;
+        padding: 7px 6px !important;
+        font-size: 11px !important;
+      }
+      .chunk-item.active .chunk-preview {
+        min-height: 110px !important;
+        max-height: 180px !important;
+      }
+      .chunk-actions,
+      .chunk-editor-actions {
+        grid-template-columns: 1fr !important;
+      }
+      .chunk-actions button,
+      .chunk-editor-actions button {
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+      .chunk-top {
+        flex-wrap: wrap !important;
+        align-items: flex-start !important;
+      }
+      .chunk-title,
+      .chunk-meta,
+      .chunk-status {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        word-break: break-word !important;
+      }
+      .translate-collapsible summary {
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+      }
+    }
+
+</style>
 </head>
 <body>
   <div id="appToast" class="app-toast" aria-live="polite"></div>
@@ -1849,7 +1914,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-22";
+    const APP_VERSION = "20260412-25";
     const VERSION_KEY = 'pdf-img-app-version';
     const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
@@ -1944,7 +2009,7 @@
         .replace(/^\s*ページ\s*\d+\s*$/gmu, '')
         .replace(/^\s*Page\s*\d+\s*$/gmu, '')
         .replace(/^\s*[\-–—]?\s*\d+\s*[\-–—]?\s*$/gmu, '')
-        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\[\[TABLE\]\]\s*/g, '').replace(/\n{3,}/g, '\n\n')
         .trim();
     }
 
@@ -2009,7 +2074,7 @@
 
         if (isLikelyTableLine(line)) {
           flushParagraph();
-          out.push(`[[TABLE]] ${line}`);
+          out.push(line);
           continue;
         }
 
@@ -2030,7 +2095,7 @@
       return out
         .filter(Boolean)
         .join('\n\n')
-        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\[\[TABLE\]\]\s*/g, '').replace(/\n{3,}/g, '\n\n')
         .trim();
     }
 
@@ -2962,7 +3027,7 @@ function normalizeLineForRepeat(text) {
           pageHeight,
           columnMode,
           lines: normalizedLines,
-          text: normalizedLines.map(l => l.text).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+          text: normalizedLines.map(l => l.text).join('\n').replace(/\[\[TABLE\]\]\s*/g, '').replace(/\n{3,}/g, '\n\n').trim()
         };
       });
     }
@@ -3369,7 +3434,71 @@ function normalizeLineForRepeat(text) {
           return `<div style="page-break-after:always;margin:0 auto 12px auto;width:${targetPageWidth}px;height:${pageCssHeight}px;position:relative;background:#fff;overflow:hidden;">${body}</div>`;
         }).join('');
 
-      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:6px;}div{box-sizing:border-box;}</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeWordHtml(title)}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>body{font-family:Meiryo,'Yu Gothic',sans-serif;background:#fff;color:#222;margin:6px;}div{box-sizing:border-box;}
+    @media (max-width: 640px) {
+      .app {
+        overflow-x: hidden;
+      }
+      .card,
+      .translate-box,
+      .translate-collapsible,
+      .chunk-item,
+      .chunk-editor,
+      .chunk-list,
+      .chunk-preview,
+      .chunk-translation,
+      .translate-merged textarea,
+      .ocr-output,
+      .doc-preview,
+      textarea {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      .translate-summary {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+      }
+      .translate-badge {
+        min-width: 0 !important;
+        width: 100% !important;
+        justify-content: center !important;
+        text-align: center !important;
+        padding: 7px 6px !important;
+        font-size: 11px !important;
+      }
+      .chunk-item.active .chunk-preview {
+        min-height: 110px !important;
+        max-height: 180px !important;
+      }
+      .chunk-actions,
+      .chunk-editor-actions {
+        grid-template-columns: 1fr !important;
+      }
+      .chunk-actions button,
+      .chunk-editor-actions button {
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+      .chunk-top {
+        flex-wrap: wrap !important;
+        align-items: flex-start !important;
+      }
+      .chunk-title,
+      .chunk-meta,
+      .chunk-status {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        word-break: break-word !important;
+      }
+      .translate-collapsible summary {
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+      }
+    }
+
+</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
     }
 
     async function renderPdfPageToCanvas(page, scale) {
@@ -3442,7 +3571,7 @@ function normalizeLineForRepeat(text) {
       return String(text || '')
         .replace(/\r/g, '')
         .replace(/[ \t]+\n/g, '\n')
-        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\[\[TABLE\]\]\s*/g, '').replace(/\n{3,}/g, '\n\n')
         .trim();
     }
 
@@ -3509,7 +3638,7 @@ function normalizeLineForRepeat(text) {
       flushParagraph();
 
       return blocks.join('\n\n')
-        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\[\[TABLE\]\]\s*/g, '').replace(/\n{3,}/g, '\n\n')
         .trim();
     }
 
