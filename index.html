@@ -279,9 +279,21 @@
         padding: 10px 8px;
         font-size: 13px;
       }
-      .ocr-actions,
       .translate-grid {
         grid-template-columns: 1fr;
+      }
+      .ocr-actions {
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.96fr) minmax(82px, 0.72fr);
+        gap: 8px;
+      }
+      .ocr-actions button {
+        min-height: 52px;
+        padding: 10px 8px;
+        font-size: 13px;
+        line-height: 1.2;
+        white-space: nowrap;
+        word-break: keep-all;
+        letter-spacing: 0;
       }
       .translate-actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1258,7 +1270,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-14";
+    const APP_VERSION = "20260412-15";
     const VERSION_KEY = 'pdf-img-app-version';
     const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
