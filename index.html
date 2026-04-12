@@ -1141,7 +1141,7 @@
             <button id="copyFullTextBtn" disabled>全文をコピー</button>
             <button id="splitTranslateBtn" class="secondary" disabled>翻訳準備</button>
           </div>
-          <div id="translateStatusBar" class="translate-statusbar">文字抽出後に「翻訳準備」を押すと、翻訳先言語の設定とチャンク分割を行います。</div>
+          <div id="translateStatusBar" class="translate-statusbar">文字抽出後に「翻訳準備」を押すと、翻訳先言語の設定とTEXT分割を行います。</div>
           <div class="translate-summary" id="translateSummary">
             <span class="translate-badge" id="translateChunkCount">分割前</span>
             <span class="translate-badge" id="translateCurrentBadge">選択なし</span>
@@ -1149,7 +1149,7 @@
           </div>
           <details class="translate-collapsible" id="translateChunksWrap">
             <summary>
-              <span>翻訳チャンク一覧</span>
+              <span>分割TEXT一覧</span>
               <span id="translateChunksHint">まだ分割されていません</span>
             </summary>
             <div class="chunk-list" id="translateChunkList"></div>
@@ -1169,7 +1169,7 @@
               </div>
             </div>
           </details>
-          <div class="translate-note">画面が見づらくならないよう、訳文入力欄は選択中チャンクだけ表示します。翻訳元言語は外部サービス側で自動判定します。機密情報の送信には注意してください。</div>
+          <div class="translate-note">画面が見づらくならないよう、訳文入力欄は選択中のTEXTだけ表示します。翻訳元言語は外部サービス側で自動判定します。機密情報の送信には注意してください。</div>
         </div>
       </section>
 
@@ -1708,7 +1708,7 @@
         ? `文字抽出が完了しました。翻訳先言語を設定し、翻訳用項目分割も実行しました。保存済み訳文も復元しました。`
         : `文字抽出が完了しました。翻訳先言語を設定し、翻訳用項目分割も実行しました。`;
       setStatus(ocrStatus, splitMessage, 'ok');
-      setTranslateStatus(`${translationChunks.length}件に分割済みです。必要なチャンクの「翻訳」ボタンから進めてください。`, 'ok');
+      setTranslateStatus(`${translationChunks.length}件に分割済みです。必要なTEXTの「翻訳」ボタンから進めてください。`, 'ok');
       if (autoMode) {
         document.getElementById('translateChunksWrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -1728,8 +1728,8 @@
         await navigator.clipboard.writeText(text);
         if (showMessage) {
           const copiedIndex = typeof index === 'number' ? index + 1 : currentChunkIndex + 1;
-          setStatus(ocrStatus, `チャンク ${copiedIndex}/${translationChunks.length} をコピーしました。外部翻訳へ貼り付けできます。`, 'ok');
-          setTranslateStatus(`チャンク ${copiedIndex}/${translationChunks.length} をコピーしました。`, 'ok');
+          setStatus(ocrStatus, `TEXT ${copiedIndex}/${translationChunks.length} をコピーしました。外部翻訳へ貼り付けできます。`, 'ok');
+          setTranslateStatus(`TEXT ${copiedIndex}/${translationChunks.length} をコピーしました。`, 'ok');
         }
       } catch (error) {
         setStatus(ocrStatus, 'コピーに失敗しました。ブラウザの権限設定をご確認ください。', 'warn');
@@ -1771,7 +1771,7 @@
       if (!text) return;
       const url = buildTranslateUrl(translateService.value, translateTarget.value, text);
       const chunkNo = typeof index === 'number' ? index + 1 : currentChunkIndex + 1;
-      setTranslateStatus(`チャンク ${chunkNo}/${translationChunks.length} を${translateService.value === 'deepl' ? 'DeepL' : 'Google翻訳'}で開きました。`, 'ok');
+      setTranslateStatus(`TEXT ${chunkNo}/${translationChunks.length} を${translateService.value === 'deepl' ? 'DeepL' : 'Google翻訳'}で開きました。`, 'ok');
       window.open(url, '_blank', 'noopener');
     }
 
@@ -1789,8 +1789,8 @@
       }
       persistTranslations();
       renderChunkList();
-      setStatus(ocrStatus, `チャンク ${index + 1}/${translationChunks.length} の訳文を保存しました。`, 'ok');
-      setTranslateStatus(`チャンク ${index + 1}/${translationChunks.length} の訳文を保存しました。`, 'ok');
+      setStatus(ocrStatus, `TEXT ${index + 1}/${translationChunks.length} の訳文を保存しました。`, 'ok');
+      setTranslateStatus(`TEXT ${index + 1}/${translationChunks.length} の訳文を保存しました。`, 'ok');
     }
 
     function toggleCurrentDone(index = currentChunkIndex) {
@@ -3211,7 +3211,7 @@ function normalizeLineForRepeat(text) {
       downloadTextBtn.disabled = true;
       clearOcrBtn.disabled = true;
       setStatus(ocrStatus, 'PDFを選択してください。');
-      setTranslateStatus('文字抽出後に「翻訳準備」を押すと、翻訳先言語の設定とチャンク分割を行います。');
+      setTranslateStatus('文字抽出後に「翻訳準備」を押すと、翻訳先言語の設定とTEXT分割を行います。');
     });
 
     extractTextBtn.addEventListener('click', async () => {
@@ -3234,7 +3234,7 @@ function normalizeLineForRepeat(text) {
           splitTranslateBtn.disabled = false;
           copyFullTextBtn.disabled = false;
           setStatus(ocrStatus, '文字抽出が完了しました。必要に応じて「翻訳準備」を押してください。', 'ok');
-          setTranslateStatus('文字抽出が完了しました。「翻訳準備」で翻訳先言語の設定とチャンク分割を行います。');
+          setTranslateStatus('文字抽出が完了しました。「翻訳準備」で翻訳先言語の設定とTEXT分割を行います。');
         } else {
           setStatus(ocrStatus, '文字情報を抽出できませんでした。画像PDFの可能性があります。', 'warn');
           setTranslateStatus('文字情報を抽出できませんでした。', 'warn');
