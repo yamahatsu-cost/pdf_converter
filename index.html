@@ -308,6 +308,19 @@
         white-space: normal;
         word-break: keep-all;
       }
+      .doc-actions {
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.96fr) minmax(82px, 0.72fr);
+        gap: 8px;
+      }
+      .doc-actions button {
+        min-height: 52px;
+        padding: 10px 8px;
+        font-size: 13px;
+        line-height: 1.2;
+        white-space: nowrap;
+        word-break: keep-all;
+        letter-spacing: 0;
+      }
     }
 
     input[type="file"] { display: none; }
@@ -1270,7 +1283,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-15";
+    const APP_VERSION = "20260412-16";
     const VERSION_KEY = 'pdf-img-app-version';
     const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
