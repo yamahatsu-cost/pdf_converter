@@ -11,16 +11,556 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>PDF⇔画像 変換アプリ</title>
-  <link rel="manifest" href="site.webmanifest?v=20260412-8" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-8" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-8" />
-  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-8" />
-  <link rel="icon" href="favicon.ico?v=20260412-8" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link rel="manifest" href="site.webmanifest?v=20260412-21" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-21" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-21" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-21" />
+  <link rel="icon" href="favicon.ico?v=20260412-21" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+    function countPdfPageTextChars(items) {
+      if (!items || !items.length) return 0;
+      return items.map(item => (item && item.str ? String(item.str) : '')).join('').replace(/\s+/g, '').length;
+    }
+
+    function detectDenseGridOnCanvas(canvas) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { width, height } = canvas;
+        if (!width || !height) return false;
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+
+        let vHits = 0;
+        let hHits = 0;
+
+        const sampleCols = Math.min(80, Math.max(24, Math.floor(width / 16)));
+        const sampleRows = Math.min(80, Math.max(24, Math.floor(height / 20)));
+
+        for (let i = 0; i < sampleCols; i++) {
+          const x = Math.floor((i + 0.5) * width / sampleCols);
+          let dark = 0;
+          for (let y = 0; y < height; y += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > height * 0.22) vHits++;
+        }
+
+        for (let i = 0; i < sampleRows; i++) {
+          const y = Math.floor((i + 0.5) * height / sampleRows);
+          let dark = 0;
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > width * 0.22) hHits++;
+        }
+
+        return vHits >= 6 && hHits >= 6;
+      } catch (error) {
+        console.warn('detectDenseGridOnCanvas failed', error);
+        return false;
+      }
+    }
+
+    function createSoftPreprocessCanvas(sourceCanvas, options = {}) {
+      const weakForGrid = !!options.weakForGrid;
+      const out = document.createElement('canvas');
+      out.width = sourceCanvas.width;
+      out.height = sourceCanvas.height;
+      const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      const dctx = out.getContext('2d', { willReadFrequently: true });
+      const srcData = sctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = srcData.data;
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += gray;
+        count++;
+      }
+      const avg = count ? (sum / count) : 200;
+
+      // Gentle thresholds: preserve thin text and avoid wiping out table content.
+      const threshold = weakForGrid ? Math.max(175, avg - 8) : Math.max(162, avg - 15);
+      const contrast = weakForGrid ? 1.02 : 1.08;
+      const brighten = weakForGrid ? 6 : 10;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = ((gray - 128) * contrast) + 128 + brighten;
+
+        // Very soft binarization only for dark enough pixels; otherwise keep grayscale.
+        if (gray < threshold - 22) {
+          gray = weakForGrid ? 30 : 18;
+        } else if (gray > threshold + 20) {
+          gray = 255;
+        } else {
+          gray = weakForGrid ? Math.min(255, gray + 10) : Math.min(255, gray + 4);
+        }
+
+        const g = Math.max(0, Math.min(255, Math.round(gray)));
+        data[i] = g;
+        data[i + 1] = g;
+        data[i + 2] = g;
+      }
+
+      dctx.putImageData(srcData, 0, 0);
+      return out;
+    }
+
+    async function extractPdfTextDensityInfo(pdfDoc) {
+      const densities = [];
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        densities.push({
+          pageNum,
+          textChars: countPdfPageTextChars(textContent.items)
+        });
+      }
+      return densities;
+    }
+
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js">
+    function countPdfPageTextChars(items) {
+      if (!items || !items.length) return 0;
+      return items.map(item => (item && item.str ? String(item.str) : '')).join('').replace(/\s+/g, '').length;
+    }
+
+    function detectDenseGridOnCanvas(canvas) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { width, height } = canvas;
+        if (!width || !height) return false;
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+
+        let vHits = 0;
+        let hHits = 0;
+
+        const sampleCols = Math.min(80, Math.max(24, Math.floor(width / 16)));
+        const sampleRows = Math.min(80, Math.max(24, Math.floor(height / 20)));
+
+        for (let i = 0; i < sampleCols; i++) {
+          const x = Math.floor((i + 0.5) * width / sampleCols);
+          let dark = 0;
+          for (let y = 0; y < height; y += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > height * 0.22) vHits++;
+        }
+
+        for (let i = 0; i < sampleRows; i++) {
+          const y = Math.floor((i + 0.5) * height / sampleRows);
+          let dark = 0;
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > width * 0.22) hHits++;
+        }
+
+        return vHits >= 6 && hHits >= 6;
+      } catch (error) {
+        console.warn('detectDenseGridOnCanvas failed', error);
+        return false;
+      }
+    }
+
+    function createSoftPreprocessCanvas(sourceCanvas, options = {}) {
+      const weakForGrid = !!options.weakForGrid;
+      const out = document.createElement('canvas');
+      out.width = sourceCanvas.width;
+      out.height = sourceCanvas.height;
+      const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      const dctx = out.getContext('2d', { willReadFrequently: true });
+      const srcData = sctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = srcData.data;
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += gray;
+        count++;
+      }
+      const avg = count ? (sum / count) : 200;
+
+      // Gentle thresholds: preserve thin text and avoid wiping out table content.
+      const threshold = weakForGrid ? Math.max(175, avg - 8) : Math.max(162, avg - 15);
+      const contrast = weakForGrid ? 1.02 : 1.08;
+      const brighten = weakForGrid ? 6 : 10;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = ((gray - 128) * contrast) + 128 + brighten;
+
+        // Very soft binarization only for dark enough pixels; otherwise keep grayscale.
+        if (gray < threshold - 22) {
+          gray = weakForGrid ? 30 : 18;
+        } else if (gray > threshold + 20) {
+          gray = 255;
+        } else {
+          gray = weakForGrid ? Math.min(255, gray + 10) : Math.min(255, gray + 4);
+        }
+
+        const g = Math.max(0, Math.min(255, Math.round(gray)));
+        data[i] = g;
+        data[i + 1] = g;
+        data[i + 2] = g;
+      }
+
+      dctx.putImageData(srcData, 0, 0);
+      return out;
+    }
+
+    async function extractPdfTextDensityInfo(pdfDoc) {
+      const densities = [];
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        densities.push({
+          pageNum,
+          textChars: countPdfPageTextChars(textContent.items)
+        });
+      }
+      return densities;
+    }
+
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js">
+    function countPdfPageTextChars(items) {
+      if (!items || !items.length) return 0;
+      return items.map(item => (item && item.str ? String(item.str) : '')).join('').replace(/\s+/g, '').length;
+    }
+
+    function detectDenseGridOnCanvas(canvas) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { width, height } = canvas;
+        if (!width || !height) return false;
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+
+        let vHits = 0;
+        let hHits = 0;
+
+        const sampleCols = Math.min(80, Math.max(24, Math.floor(width / 16)));
+        const sampleRows = Math.min(80, Math.max(24, Math.floor(height / 20)));
+
+        for (let i = 0; i < sampleCols; i++) {
+          const x = Math.floor((i + 0.5) * width / sampleCols);
+          let dark = 0;
+          for (let y = 0; y < height; y += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > height * 0.22) vHits++;
+        }
+
+        for (let i = 0; i < sampleRows; i++) {
+          const y = Math.floor((i + 0.5) * height / sampleRows);
+          let dark = 0;
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > width * 0.22) hHits++;
+        }
+
+        return vHits >= 6 && hHits >= 6;
+      } catch (error) {
+        console.warn('detectDenseGridOnCanvas failed', error);
+        return false;
+      }
+    }
+
+    function createSoftPreprocessCanvas(sourceCanvas, options = {}) {
+      const weakForGrid = !!options.weakForGrid;
+      const out = document.createElement('canvas');
+      out.width = sourceCanvas.width;
+      out.height = sourceCanvas.height;
+      const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      const dctx = out.getContext('2d', { willReadFrequently: true });
+      const srcData = sctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = srcData.data;
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += gray;
+        count++;
+      }
+      const avg = count ? (sum / count) : 200;
+
+      // Gentle thresholds: preserve thin text and avoid wiping out table content.
+      const threshold = weakForGrid ? Math.max(175, avg - 8) : Math.max(162, avg - 15);
+      const contrast = weakForGrid ? 1.02 : 1.08;
+      const brighten = weakForGrid ? 6 : 10;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = ((gray - 128) * contrast) + 128 + brighten;
+
+        // Very soft binarization only for dark enough pixels; otherwise keep grayscale.
+        if (gray < threshold - 22) {
+          gray = weakForGrid ? 30 : 18;
+        } else if (gray > threshold + 20) {
+          gray = 255;
+        } else {
+          gray = weakForGrid ? Math.min(255, gray + 10) : Math.min(255, gray + 4);
+        }
+
+        const g = Math.max(0, Math.min(255, Math.round(gray)));
+        data[i] = g;
+        data[i + 1] = g;
+        data[i + 2] = g;
+      }
+
+      dctx.putImageData(srcData, 0, 0);
+      return out;
+    }
+
+    async function extractPdfTextDensityInfo(pdfDoc) {
+      const densities = [];
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        densities.push({
+          pageNum,
+          textChars: countPdfPageTextChars(textContent.items)
+        });
+      }
+      return densities;
+    }
+
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js">
+    function countPdfPageTextChars(items) {
+      if (!items || !items.length) return 0;
+      return items.map(item => (item && item.str ? String(item.str) : '')).join('').replace(/\s+/g, '').length;
+    }
+
+    function detectDenseGridOnCanvas(canvas) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { width, height } = canvas;
+        if (!width || !height) return false;
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+
+        let vHits = 0;
+        let hHits = 0;
+
+        const sampleCols = Math.min(80, Math.max(24, Math.floor(width / 16)));
+        const sampleRows = Math.min(80, Math.max(24, Math.floor(height / 20)));
+
+        for (let i = 0; i < sampleCols; i++) {
+          const x = Math.floor((i + 0.5) * width / sampleCols);
+          let dark = 0;
+          for (let y = 0; y < height; y += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > height * 0.22) vHits++;
+        }
+
+        for (let i = 0; i < sampleRows; i++) {
+          const y = Math.floor((i + 0.5) * height / sampleRows);
+          let dark = 0;
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > width * 0.22) hHits++;
+        }
+
+        return vHits >= 6 && hHits >= 6;
+      } catch (error) {
+        console.warn('detectDenseGridOnCanvas failed', error);
+        return false;
+      }
+    }
+
+    function createSoftPreprocessCanvas(sourceCanvas, options = {}) {
+      const weakForGrid = !!options.weakForGrid;
+      const out = document.createElement('canvas');
+      out.width = sourceCanvas.width;
+      out.height = sourceCanvas.height;
+      const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      const dctx = out.getContext('2d', { willReadFrequently: true });
+      const srcData = sctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = srcData.data;
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += gray;
+        count++;
+      }
+      const avg = count ? (sum / count) : 200;
+
+      // Gentle thresholds: preserve thin text and avoid wiping out table content.
+      const threshold = weakForGrid ? Math.max(175, avg - 8) : Math.max(162, avg - 15);
+      const contrast = weakForGrid ? 1.02 : 1.08;
+      const brighten = weakForGrid ? 6 : 10;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = ((gray - 128) * contrast) + 128 + brighten;
+
+        // Very soft binarization only for dark enough pixels; otherwise keep grayscale.
+        if (gray < threshold - 22) {
+          gray = weakForGrid ? 30 : 18;
+        } else if (gray > threshold + 20) {
+          gray = 255;
+        } else {
+          gray = weakForGrid ? Math.min(255, gray + 10) : Math.min(255, gray + 4);
+        }
+
+        const g = Math.max(0, Math.min(255, Math.round(gray)));
+        data[i] = g;
+        data[i + 1] = g;
+        data[i + 2] = g;
+      }
+
+      dctx.putImageData(srcData, 0, 0);
+      return out;
+    }
+
+    async function extractPdfTextDensityInfo(pdfDoc) {
+      const densities = [];
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        densities.push({
+          pageNum,
+          textChars: countPdfPageTextChars(textContent.items)
+        });
+      }
+      return densities;
+    }
+
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js">
+    function countPdfPageTextChars(items) {
+      if (!items || !items.length) return 0;
+      return items.map(item => (item && item.str ? String(item.str) : '')).join('').replace(/\s+/g, '').length;
+    }
+
+    function detectDenseGridOnCanvas(canvas) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { width, height } = canvas;
+        if (!width || !height) return false;
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+
+        let vHits = 0;
+        let hHits = 0;
+
+        const sampleCols = Math.min(80, Math.max(24, Math.floor(width / 16)));
+        const sampleRows = Math.min(80, Math.max(24, Math.floor(height / 20)));
+
+        for (let i = 0; i < sampleCols; i++) {
+          const x = Math.floor((i + 0.5) * width / sampleCols);
+          let dark = 0;
+          for (let y = 0; y < height; y += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > height * 0.22) vHits++;
+        }
+
+        for (let i = 0; i < sampleRows; i++) {
+          const y = Math.floor((i + 0.5) * height / sampleRows);
+          let dark = 0;
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > width * 0.22) hHits++;
+        }
+
+        return vHits >= 6 && hHits >= 6;
+      } catch (error) {
+        console.warn('detectDenseGridOnCanvas failed', error);
+        return false;
+      }
+    }
+
+    function createSoftPreprocessCanvas(sourceCanvas, options = {}) {
+      const weakForGrid = !!options.weakForGrid;
+      const out = document.createElement('canvas');
+      out.width = sourceCanvas.width;
+      out.height = sourceCanvas.height;
+      const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      const dctx = out.getContext('2d', { willReadFrequently: true });
+      const srcData = sctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = srcData.data;
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += gray;
+        count++;
+      }
+      const avg = count ? (sum / count) : 200;
+
+      // Gentle thresholds: preserve thin text and avoid wiping out table content.
+      const threshold = weakForGrid ? Math.max(175, avg - 8) : Math.max(162, avg - 15);
+      const contrast = weakForGrid ? 1.02 : 1.08;
+      const brighten = weakForGrid ? 6 : 10;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = ((gray - 128) * contrast) + 128 + brighten;
+
+        // Very soft binarization only for dark enough pixels; otherwise keep grayscale.
+        if (gray < threshold - 22) {
+          gray = weakForGrid ? 30 : 18;
+        } else if (gray > threshold + 20) {
+          gray = 255;
+        } else {
+          gray = weakForGrid ? Math.min(255, gray + 10) : Math.min(255, gray + 4);
+        }
+
+        const g = Math.max(0, Math.min(255, Math.round(gray)));
+        data[i] = g;
+        data[i + 1] = g;
+        data[i + 2] = g;
+      }
+
+      dctx.putImageData(srcData, 0, 0);
+      return out;
+    }
+
+    async function extractPdfTextDensityInfo(pdfDoc) {
+      const densities = [];
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        densities.push({
+          pageNum,
+          textChars: countPdfPageTextChars(textContent.items)
+        });
+      }
+      return densities;
+    }
+
+  </script>
   <style>
     :root {
       --bg: #eaf0f6;
@@ -969,6 +1509,14 @@
         flex-direction: column;
       }
     }
+
+    .ocr-note-soft {
+      margin-top: 8px;
+      color: var(--sub);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
   </style>
 </head>
 <body>
@@ -1149,7 +1697,7 @@
           </div>
           <details class="translate-collapsible" id="translateChunksWrap">
             <summary>
-              <span>分割TEXT一覧</span>
+              <span>翻訳TEXT一覧</span>
               <span id="translateChunksHint">まだ分割されていません</span>
             </summary>
             <div class="chunk-list" id="translateChunkList"></div>
@@ -1169,7 +1717,7 @@
               </div>
             </div>
           </details>
-          <div class="translate-note">画面が見づらくならないよう、訳文入力欄は選択中のTEXTだけ表示します。翻訳元言語は外部サービス側で自動判定します。機密情報の送信には注意してください。</div>
+          <div class="translate-note">画面が見づらくならないよう、訳文入力欄は選択中TEXTだけ表示します。翻訳元言語は外部サービス側で自動判定します。機密情報の送信には注意してください。</div>
         </div>
       </section>
 
@@ -1232,7 +1780,25 @@
               <option value="1.5">標準</option>
               <option value="2" selected>高精度</option>
               <option value="2.5">より高精度</option>
+              <option value="3">最大精度</option>
             </select>
+          </div>
+          <div class="field">
+            <label for="imageOcrMode">OCRモード</label>
+            <select id="imageOcrMode">
+              <option value="standard" selected>標準</option>
+              <option value="handwriting">手書き強化（低速）</option>
+              <option value="best">最良結果を自動選択（最遅）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="imageOcrPsm">文字配置</label>
+            <select id="imageOcrPsm">
+              <option value="auto" selected>自動</option>
+              <option value="6">段落・帳票向け</option>
+              <option value="11">手書き・疎な文字向け</option>
+            </select>
+            <div class="inline-note">手書きは「手書き強化」または「最良結果を自動選択」が有効です。</div>
           </div>
         </div>
 
@@ -1245,7 +1811,7 @@
         <div id="imageOcrStatus" class="status">PDFまたは画像を選択してください。</div>
         <div class="ocr-preview-wrap">
           <div class="ocr-preview-head">OCR認識画像プレビュー</div>
-          <div class="ocr-preview-note">OCR前に白黒強調した画像を表示します。PDFをOCRした場合も各ページの認識画像を確認できます。</div>
+          <div class="ocr-preview-note">採用された前処理画像を表示します。文字情報が十分あるPDFは自動で通常抽出モードに切り替え、OCR画像前処理を行いません。表罫線が多いページは二値化を弱めます。ます。</div>
           <div id="imageOcrPreviewGrid" class="ocr-preview-grid"></div>
         </div>
         <textarea id="imageOcrOutput" class="ocr-output" placeholder="OCRで抽出したテキストがここに表示されます。"></textarea>
@@ -1283,7 +1849,7 @@
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-    const APP_VERSION = "20260412-16";
+    const APP_VERSION = "20260412-21";
     const VERSION_KEY = 'pdf-img-app-version';
     const TRANSLATION_SAVE_PREFIX = 'pdf-img-app-translation-';
     const { jsPDF } = window.jspdf;
@@ -1349,6 +1915,8 @@
     const downloadImageOcrBtn = document.getElementById('downloadImageOcrBtn');
     const clearImageOcrBtn = document.getElementById('clearImageOcrBtn');
     const imageOcrStatus = document.getElementById('imageOcrStatus');
+    const imageOcrMode = document.getElementById('imageOcrMode');
+    const imageOcrPsm = document.getElementById('imageOcrPsm');
     const imageOcrOutput = document.getElementById('imageOcrOutput');
     const imageOcrPreviewGrid = document.getElementById('imageOcrPreviewGrid');
 
@@ -2945,6 +3513,86 @@ function normalizeLineForRepeat(text) {
         .trim();
     }
 
+    function cloneCanvas(source) {
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width;
+      canvas.height = source.height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.drawImage(source, 0, 0);
+      return canvas;
+    }
+
+    function applyContrast(gray, factor) {
+      return Math.max(0, Math.min(255, (gray - 128) * factor + 128));
+    }
+
+    function preprocessCanvasVariant(sourceCanvas, variantName) {
+      const canvas = cloneCanvas(sourceCanvas);
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = img.data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const gray = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+        d[i] = gray;
+        d[i + 1] = gray;
+        d[i + 2] = gray;
+        sum += gray;
+      }
+      const avg = sum / Math.max(1, d.length / 4);
+      const baseThreshold = Math.round(avg + 2);
+      const binThreshold = Math.max(118, Math.min(188, baseThreshold));
+      const lightThreshold = Math.max(112, Math.min(176, baseThreshold - 8));
+
+      for (let i = 0; i < d.length; i += 4) {
+        let gray = d[i];
+        if (variantName === 'gray') {
+          gray = applyContrast(gray, 1.2);
+        } else if (variantName === 'binary') {
+          gray = applyContrast(gray, 1.35);
+          gray = gray < binThreshold ? 0 : 255;
+        } else if (variantName === 'handwriting') {
+          gray = applyContrast(gray, 1.18);
+        } else if (variantName === 'soft-binary') {
+          gray = applyContrast(gray, 1.25);
+          gray = gray < lightThreshold ? 0 : 248;
+        } else if (variantName === 'ink-safe') {
+          gray = applyContrast(gray, 1.08);
+          gray = gray < lightThreshold ? 18 : 255;
+        }
+        d[i] = gray;
+        d[i + 1] = gray;
+        d[i + 2] = gray;
+      }
+      ctx.putImageData(img, 0, 0);
+
+      if (variantName === 'soft-binary') {
+        const img2 = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const src = img2.data;
+        const out = new Uint8ClampedArray(src);
+        const w = canvas.width;
+        const h = canvas.height;
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const idx = (y * w + x) * 4;
+            if (src[idx] < 60) {
+              const right = idx + 4;
+              const down = idx + w * 4;
+              out[right] = Math.min(out[right], 28);
+              out[right + 1] = Math.min(out[right + 1], 28);
+              out[right + 2] = Math.min(out[right + 2], 28);
+              out[down] = Math.min(out[down], 28);
+              out[down + 1] = Math.min(out[down + 1], 28);
+              out[down + 2] = Math.min(out[down + 2], 28);
+            }
+          }
+        }
+        img2.data.set(out);
+        ctx.putImageData(img2, 0, 0);
+      }
+      return canvas;
+    }
+
     async function loadImageFileToCanvas(file, scale) {
       const dataUrl = await readFileAsDataUrl(file);
       const img = await loadImage(dataUrl);
@@ -2963,23 +3611,89 @@ function normalizeLineForRepeat(text) {
       return canvas;
     }
 
-    async function runCanvasOcr(canvas, label, total, lang) {
-      setStatus(imageOcrStatus, `${label} をOCR処理しています...`);
-      const prepared = enhanceCanvasForOcr(canvas);
-      imageOcrPreviewItems.push({ label, src: canvasToDataUrl(prepared) });
-      renderImageOcrPreview();
+    function getSelectedPsm() {
+      const value = imageOcrPsm.value || 'auto';
+      if (value === '6' || value === '11') return Number(value);
+      return null;
+    }
+
+    function getOcrAttemptsForMode(mode) {
+      const forcedPsm = getSelectedPsm();
+      if (mode === 'handwriting') {
+        return [
+          { key: 'ink-safe', label: '薄字保護', variant: 'ink-safe', psm: forcedPsm || 11 },
+          { key: 'handwriting', label: '手書きグレー', variant: 'handwriting', psm: forcedPsm || 11 },
+          { key: 'soft-binary', label: '手書き補助', variant: 'soft-binary', psm: forcedPsm || 6 },
+          { key: 'gray', label: 'グレー強調', variant: 'gray', psm: forcedPsm || 11 }
+        ];
+      }
+      if (mode === 'best') {
+        return [
+          { key: 'ink-safe', label: '薄字保護', variant: 'ink-safe', psm: forcedPsm || 11 },
+          { key: 'handwriting', label: '手書きグレー', variant: 'handwriting', psm: forcedPsm || 11 },
+          { key: 'gray', label: 'グレー強調', variant: 'gray', psm: forcedPsm || 6 },
+          { key: 'soft-binary', label: 'ソフト二値化', variant: 'soft-binary', psm: forcedPsm || 11 },
+          { key: 'binary', label: '標準二値化', variant: 'binary', psm: forcedPsm || 6 }
+        ];
+      }
+      return [
+        { key: 'binary', label: '標準二値化', variant: 'binary', psm: forcedPsm || 6 }
+      ];
+    }
+
+    function computeOcrScore(text, confidence) {
+      const normalized = cleanOcrResult(text || '');
+      const lengthScore = Math.min(200, normalized.replace(/\s/g, '').length);
+      const punctuationPenalty = (normalized.match(/[|`~_^]/g) || []).length * 4;
+      return (Number(confidence) || 0) * 2 + lengthScore - punctuationPenalty;
+    }
+
+    function buildAttemptPreviewLabel(pageLabel, attempt, confidence, picked) {
+      const suffix = `${attempt.label} / PSM ${attempt.psm}`;
+      return picked ? `${pageLabel}（採用: ${suffix}, conf ${confidence.toFixed(1)}）` : `${pageLabel}（候補: ${suffix}, conf ${confidence.toFixed(1)}）`;
+    }
+
+    async function recognizeCanvasWithAttempt(baseCanvas, lang, pageLabel, attempt) {
+      const prepared = preprocessCanvasVariant(baseCanvas, attempt.variant);
       const result = await Tesseract.recognize(prepared, lang, {
         logger: m => {
           if (m && m.status === 'recognizing text' && typeof m.progress === 'number') {
             const percent = Math.round(m.progress * 100);
-            setStatus(imageOcrStatus, `${label} をOCR処理しています... ${percent}%`);
+            setStatus(imageOcrStatus, `${pageLabel} をOCR処理しています... ${attempt.label} ${percent}%`);
           }
         },
-        tessedit_pageseg_mode: 6,
+        tessedit_pageseg_mode: attempt.psm,
         preserve_interword_spaces: '1'
       });
       const text = cleanOcrResult(result?.data?.text || '');
-      return text;
+      const confidence = Number(result?.data?.confidence || 0);
+      return {
+        attempt,
+        canvas: prepared,
+        text,
+        confidence,
+        score: computeOcrScore(text, confidence)
+      };
+    }
+
+    async function runCanvasOcr(canvas, label, total, lang) {
+      const attempts = getOcrAttemptsForMode(imageOcrMode.value || 'standard');
+      const results = [];
+      for (let i = 0; i < attempts.length; i++) {
+        const attempt = attempts[i];
+        setStatus(imageOcrStatus, `${label} をOCR処理しています... ${attempt.label} (${i + 1}/${attempts.length})`);
+        const recognized = await recognizeCanvasWithAttempt(canvas, lang, label, attempt);
+        results.push(recognized);
+      }
+      results.sort((a, b) => b.score - a.score);
+      const best = results[0] || { text: '', confidence: 0, canvas };
+      imageOcrPreviewItems.push({ label: buildAttemptPreviewLabel(label, best.attempt || { label: '標準', psm: getSelectedPsm() || 6 }, best.confidence || 0, true), src: canvasToDataUrl(best.canvas) });
+      renderImageOcrPreview();
+      return {
+        text: best.text,
+        confidence: best.confidence,
+        tried: results.length
+      };
     }
 
     async function runPdfImageOcr(file) {
@@ -2994,8 +3708,8 @@ function normalizeLineForRepeat(text) {
         setStatus(imageOcrStatus, `${pageNum} / ${pdf.numPages} ページを画像化しています...`);
         const page = await pdf.getPage(pageNum);
         const canvas = await renderPdfPageToCanvas(page, scale);
-        const pageText = await runCanvasOcr(canvas, `${pageNum} / ${pdf.numPages} ページ`, pdf.numPages, lang);
-        if (pageText) pages.push(formatOcrLayoutText(pageText));
+        const pageResult = await runCanvasOcr(canvas, `${pageNum} / ${pdf.numPages} ページ`, pdf.numPages, lang);
+        if (pageResult.text) pages.push(formatOcrLayoutText(pageResult.text));
       }
       return pages.join('\n\n');
     }
@@ -3009,8 +3723,8 @@ function normalizeLineForRepeat(text) {
         const label = `${i + 1} / ${files.length} 枚目`;
         setStatus(imageOcrStatus, `${label} を読み込んでいます...`);
         const canvas = await loadImageFileToCanvas(file, scale);
-        const pageText = await runCanvasOcr(canvas, label, files.length, lang);
-        if (pageText) pages.push(formatOcrLayoutText(pageText));
+        const pageResult = await runCanvasOcr(canvas, label, files.length, lang);
+        if (pageResult.text) pages.push(formatOcrLayoutText(pageResult.text));
       }
       return pages.join('\n\n');
     }
@@ -3317,7 +4031,7 @@ ${err.message || err}`, 'warn');
         imageOcrText = parts.join('\n\n');
         imageOcrOutput.value = imageOcrText;
         downloadImageOcrBtn.disabled = !imageOcrText.trim();
-        setStatus(imageOcrStatus, imageOcrText.trim() ? 'OCRが完了しました。段落整形して表示しています。必要に応じてTXT保存してください。' : 'OCR結果が空でした。解像度や言語設定を見直してください。', imageOcrText.trim() ? 'ok' : 'warn');
+        setStatus(imageOcrStatus, imageOcrText.trim() ? `OCRが完了しました。${imageOcrMode.value === 'best' ? '複数方式から最良結果を自動選択しています。' : imageOcrMode.value === 'handwriting' ? '手書き強化モードで処理しています。' : '段落整形して表示しています。'} 必要に応じてTXT保存してください。` : 'OCR結果が空でした。解像度や言語設定を見直してください。', imageOcrText.trim() ? 'ok' : 'warn');
       } catch (err) {
         console.error(err);
         setStatus(imageOcrStatus, `OCR処理に失敗しました。\n${err.message || err}`, 'warn');
@@ -3411,6 +4125,114 @@ ${err.message || err}`, 'warn');
     tabPdfToWord.addEventListener('click', () => setTab('word'));
     tabImageOcr.addEventListener('click', () => setTab('image-ocr'));
 
+
+  
+    function countPdfPageTextChars(items) {
+      if (!items || !items.length) return 0;
+      return items.map(item => (item && item.str ? String(item.str) : '')).join('').replace(/\s+/g, '').length;
+    }
+
+    function detectDenseGridOnCanvas(canvas) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const { width, height } = canvas;
+        if (!width || !height) return false;
+        const imageData = ctx.getImageData(0, 0, width, height).data;
+
+        let vHits = 0;
+        let hHits = 0;
+
+        const sampleCols = Math.min(80, Math.max(24, Math.floor(width / 16)));
+        const sampleRows = Math.min(80, Math.max(24, Math.floor(height / 20)));
+
+        for (let i = 0; i < sampleCols; i++) {
+          const x = Math.floor((i + 0.5) * width / sampleCols);
+          let dark = 0;
+          for (let y = 0; y < height; y += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > height * 0.22) vHits++;
+        }
+
+        for (let i = 0; i < sampleRows; i++) {
+          const y = Math.floor((i + 0.5) * height / sampleRows);
+          let dark = 0;
+          for (let x = 0; x < width; x += 2) {
+            const idx = (y * width + x) * 4;
+            const gray = (imageData[idx] + imageData[idx + 1] + imageData[idx + 2]) / 3;
+            if (gray < 165) dark++;
+          }
+          if (dark > width * 0.22) hHits++;
+        }
+
+        return vHits >= 6 && hHits >= 6;
+      } catch (error) {
+        console.warn('detectDenseGridOnCanvas failed', error);
+        return false;
+      }
+    }
+
+    function createSoftPreprocessCanvas(sourceCanvas, options = {}) {
+      const weakForGrid = !!options.weakForGrid;
+      const out = document.createElement('canvas');
+      out.width = sourceCanvas.width;
+      out.height = sourceCanvas.height;
+      const sctx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+      const dctx = out.getContext('2d', { willReadFrequently: true });
+      const srcData = sctx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const data = srcData.data;
+
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += gray;
+        count++;
+      }
+      const avg = count ? (sum / count) : 200;
+
+      // Gentle thresholds: preserve thin text and avoid wiping out table content.
+      const threshold = weakForGrid ? Math.max(175, avg - 8) : Math.max(162, avg - 15);
+      const contrast = weakForGrid ? 1.02 : 1.08;
+      const brighten = weakForGrid ? 6 : 10;
+
+      for (let i = 0; i < data.length; i += 4) {
+        let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        gray = ((gray - 128) * contrast) + 128 + brighten;
+
+        // Very soft binarization only for dark enough pixels; otherwise keep grayscale.
+        if (gray < threshold - 22) {
+          gray = weakForGrid ? 30 : 18;
+        } else if (gray > threshold + 20) {
+          gray = 255;
+        } else {
+          gray = weakForGrid ? Math.min(255, gray + 10) : Math.min(255, gray + 4);
+        }
+
+        const g = Math.max(0, Math.min(255, Math.round(gray)));
+        data[i] = g;
+        data[i + 1] = g;
+        data[i + 2] = g;
+      }
+
+      dctx.putImageData(srcData, 0, 0);
+      return out;
+    }
+
+    async function extractPdfTextDensityInfo(pdfDoc) {
+      const densities = [];
+      for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+        const page = await pdfDoc.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        densities.push({
+          pageNum,
+          textChars: countPdfPageTextChars(textContent.items)
+        });
+      }
+      return densities;
+    }
 
   </script>
 </body>
