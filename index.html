@@ -11,11 +11,12 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>PDF⇔画像 変換アプリ</title>
-  <link rel="manifest" href="site.webmanifest?v=20260412-25" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260412-25" />
-  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png?v=20260412-25" />
-  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png?v=20260412-25" />
-  <link rel="icon" href="favicon.ico?v=20260412-25" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="app-icon.png" />
+  <link rel="preload" href="app-icon.png" as="image" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icon-16.png" />
+  <link rel="icon" href="favicon.ico" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
     function countPdfPageTextChars(items) {
       if (!items || !items.length) return 0;
@@ -1583,8 +1584,30 @@
     }
 
 </style>
+
+  <style id="startupSplashStyle">
+    .startup-splash{
+      position:fixed;inset:0;z-index:99999;
+      display:flex;align-items:center;justify-content:center;
+      background:#eaf0f6;
+      transition:opacity .28s ease, visibility .28s ease;
+    }
+    .startup-splash.hide{opacity:0;visibility:hidden;pointer-events:none;}
+    .startup-splash img{
+      width:min(42vw,220px);height:auto;border-radius:28px;
+      box-shadow:0 18px 42px rgba(18,57,102,.24);
+      display:block;
+    }
+    @media (max-width:640px){
+      .startup-splash img{width:min(52vw,190px);border-radius:24px;}
+    }
+  </style>
 </head>
 <body>
+  <div id="startupSplash" class="startup-splash" aria-label="起動中">
+    <img src="app-icon.png" alt="PDF Converter" />
+  </div>
+
   <div id="appToast" class="app-toast" aria-live="polite"></div>
   <div class="app">
     <div class="header-shell">
@@ -3498,7 +3521,38 @@ function normalizeLineForRepeat(text) {
       }
     }
 
-</style></head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}</body></html>`;
+</style>
+  <style id="startupSplashStyle">
+    .startup-splash{
+      position:fixed;inset:0;z-index:99999;
+      display:flex;align-items:center;justify-content:center;
+      background:#eaf0f6;
+      transition:opacity .28s ease, visibility .28s ease;
+    }
+    .startup-splash.hide{opacity:0;visibility:hidden;pointer-events:none;}
+    .startup-splash img{
+      width:min(42vw,220px);height:auto;border-radius:28px;
+      box-shadow:0 18px 42px rgba(18,57,102,.24);
+      display:block;
+    }
+    @media (max-width:640px){
+      .startup-splash img{width:min(52vw,190px);border-radius:24px;}
+    }
+  </style>
+</head><body>${renderedPages || `<p>${escapeWordHtml(title)}</p>`}
+<script id="startupSplashScript">
+  (function(){
+    function hideStartupSplash(){
+      var splash = document.getElementById('startupSplash');
+      if(!splash) return;
+      splash.classList.add('hide');
+      setTimeout(function(){ if(splash && splash.parentNode){ splash.parentNode.removeChild(splash); } }, 420);
+    }
+    window.addEventListener('load', function(){ setTimeout(hideStartupSplash, 450); });
+    setTimeout(hideStartupSplash, 1800);
+  })();
+</script>
+</body></html>`;
     }
 
     async function renderPdfPageToCanvas(page, scale) {
@@ -4364,5 +4418,18 @@ ${err.message || err}`, 'warn');
     }
 
   </script>
+
+<script id="startupSplashScript">
+  (function(){
+    function hideStartupSplash(){
+      var splash = document.getElementById('startupSplash');
+      if(!splash) return;
+      splash.classList.add('hide');
+      setTimeout(function(){ if(splash && splash.parentNode){ splash.parentNode.removeChild(splash); } }, 420);
+    }
+    window.addEventListener('load', function(){ setTimeout(hideStartupSplash, 450); });
+    setTimeout(hideStartupSplash, 1800);
+  })();
+</script>
 </body>
 </html>
